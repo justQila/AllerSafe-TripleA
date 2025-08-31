@@ -69,27 +69,46 @@
         }
     </style>
 
-    <!-- fontawesome icons-->
-     <script src="https://kit.fontawesome.com/0c6b6f3a60.js" crossorigin="anonymous"></script>
+    <!-- font awesome CDN-->
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
         <h2>Register</h2>
-        <form method="POST" action="/AllerSafe/register">
+        <form id="registerForm" method="POST" action="/AllerSafe/register">
             <div class="input-group">
-                <i class="fas fa-user"></i>
+                <i class="fa-solid fa-user"></i>
                 <input type="text" name="username" placeholder="Username" required>
             </div>
             <div class="input-group">
-                <i class="fas fa-envelope"></i>
+                <i class="fa-solid fa-envelope"></i>
                 <input type="email" name="email" placeholder="Email" required>
             </div>
             <div class="input-group">
-                <i class="fas fa-lock"></i>
-                <input type="password" name="password" placeholder="Password" required>
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" name="password" placeholder="Password (4 digits)"
+                        maxlength="4" pattern="\d{4}" required
+                        title="Password must be 4 digits only">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" name="confirm_password" placeholder="Confirm Password"
+                        maxlength="4" pattern="\d{4}" required
+                        title="Password must be 4 digits only">
             </div>
             <button type="submit">Register</button>
         </form>
     </div>
+    <script>
+        document.getElementById("registerForm").addEventListener("submit", function(e) {
+            let pass = document.querySelector("input[name='password']").value;
+            let confirm = document.querySelector("input[name='confirm_password']").value;
+
+            if (pass !== confirm) {
+                e.preventDefault();
+                alert("Password do not match!!");
+            }
+        });
+    </script>
 </body>
 </html>
