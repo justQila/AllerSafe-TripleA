@@ -1,10 +1,16 @@
 import sqlite3
-conn = sqlite3.connect('allergy_app.db')
-#Admin table
-conn.execute('''
-CREATE TABLE admins (
-    admin_key INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
-    password TEXT NOT NULL
-);
-''')
+from werkzeug.security import generate_password_hash
+
+conn = sqlite3.connect("allergy_app.db")
+cursor = conn.cursor()
+
+admins = [
+    ("admin1", generate_password_hash("password1")),
+    ("admin2", generate_password_hash("password2")),
+    ("admin3", generate_password_hash("password3")),
+]
+
+cursor.executemany("INSERT INTO admins (username, password) VALUES (?, ?)", admins)
+
+conn.commit()
+conn.close()
