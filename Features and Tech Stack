@@ -1,6 +1,0 @@
-User - sign up/login, search and browse recipe, filter recipes by allergens, view tags showing which allergens a recipe is safe from, add/remove recipe(s), able to comment, save favourite recipes
-Admin -Manage users (add, edit, delete), Add, edit, and delete recipes, Assign allergens to recipes, Approve/reject user-submitted recipes
-Language: Python
-Framework: Flask (with Jinja2 templating)
-Frontend: Bootstrap 5 (responsive UI)
-Database: SQLite3
