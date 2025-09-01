@@ -1,8 +1,8 @@
 from flask import Blueprint, request, session, redirect, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
 from models import get_db, log_action
 
 auth_bp = Blueprint('auth', __name__)
-
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -11,14 +11,15 @@ def login():
         password = request.form["password"]
 
         db = get_db()
-        user = db.execute("SELECT * FROM users WHERE username=? AND password=?",
-                          (username, password)).fetchone()
+        admin = db.execute("SELECT * FROM admins WHERE username=?",
+                           (username,)).fetchone()
 
-        if user:
-            session["user_id"] = user["id"]
-            session["role"] = user["role"]
+        if admin and check_password_hash(admin["password"], password):
+            # store session
+            session["admin_id"] = admin["admin_key"]
+            session["role"] = "admin"
 
-            log_action(user["id"], user["role"], "Logged in")
+            log_action(admin["admin_key"], "admin", "Logged in")
             return redirect(url_for("audit.dashboard"))
 
         return "Invalid credentials."
@@ -31,10 +32,9 @@ def login():
     </form>
     '''
 
-
 @auth_bp.route("/logout")
 def logout():
-    if "user_id" in session:
-        log_action(session["user_id"], session["role"], "Logged out")
+    if "admin_id" in session:
+        log_action(session["admin_id"], "admin", "Logged out")
     session.clear()
     return redirect(url_for("auth.login"))
