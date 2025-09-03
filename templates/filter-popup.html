@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FILTER ALLERGIES</title>
+    <style>
+        /*------GENERAL BODY-----*/
+        body{
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #fefcf9;
+            display:flex;
+            justify-content: center;
+            align-items: center;
+            height: 40vh;
+        }
+        /*FILTER BUTTON*/
+        #filterBtn {
+            background-color: #b23a2e;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 12px 40px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease-in-out;
+            letter-spacing: 1px;
+
+            position: relative;
+            left:-100px;
+            margin-top: 20px;
+        }
+        #filterBtn:hover {
+            background-color: #8e2f24;
+            transform: scale(1.08);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+        }
+        /*overlay*/
+        .popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+        /*popup box*/
+        .popup-content {
+            background-color: #fffaf4;
+            padding: 25px;
+            margin: 8% auto;
+            width: 350px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-align: left;
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        /*TITLE*/
+        .popup-content h3 {
+            margin-bottom: 0;
+            color: #b23a2e;
+            text-align: center;
+            font-size: 22px;
+        }
+        /*closebutton*/
+        .close {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #b23a2e;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .close:hover {
+            color: #8e2f24;
+        }
+        /*ALLERGY LABEL*/
+        label{
+            display: block; /*seperate line*/
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #333;
+            cursor: pointer;
+        }
+        /*'APPLY' BUTTON*/
+        button[type="submit"] {
+            background-color: #b23a2e;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: all 0.2s ease-in-out;
+        }
+        button[type="submit"]:hover {
+            background-color: #8e2f24;
+            transform: scale(1.05);
+        }
+        /*ANIMATION*/
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <button id="filterBtn">FILTERS</button>
+
+    <div id="filterPopup" class="popup">
+        <div class="popup-content">
+            <span class="close" id="closePopup">&times;</span>
+            <h3>FILTER ALLERGIES</h3>
+            <form method="POST" action="/filter">
+                <label> <input type="checkbox" name="allergies" value="fruits">Fruits</label>
+                <label> <input type="checkbox" name="allergies" value="nuts & seeds">Nuts & seeds</label>
+                <label> <input type="checkbox" name="allergies" value="vegetables">Vegetables</label>
+                <label> <input type="checkbox" name="allergies" value="animal product">Animal product</label>
+                <button type="submit">Apply Filter</button>
+            </form>
+        </div>
+     </div>
+
+    <script>
+        /*elements js*/
+        const filterBtn = document.getElementById("filterBtn");
+        const popup = document.getElementById("filterPopup");
+        const closeBtn = document.getElementById("closePopup")
+
+        filterBtn.addEventListener("click", () => {
+                popup.style.display ="block";
+        });
+
+        closeBtn.addEventListener("click", () => {
+            popup.style.display ="none";
+        });
+
+        window.addEventListener("click", (e) => {
+            if (e.target === popup) {
+                popup.style.display = "none";
+            }
+        });
+    </script>
+</body>
+</html>
