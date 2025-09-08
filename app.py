@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy   #LIBRARY
 app=Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipe.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONs'] = False
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db=SQLAlchemy(app)
 
