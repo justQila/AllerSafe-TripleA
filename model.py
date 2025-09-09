@@ -1,53 +1,51 @@
 import sqlite3
 from flask import g
 
-DATABASE = "app.db"
+DATABASE = "allergy_app.db"
 
-
+# ---------------- DB CONNECTION ---------------- #
 def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
-    return db
+    """Get a database connection (one per request)."""
+    if "db" not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row  # rows behave like dictionaries
+    return g.db
 
-
-def close_connection(exception):
-    db = getattr(g, "_database", None)
+def close_db(e=None):
+    """Close the database connection at the end of the request."""
+    db = g.pop("db", None)
     if db is not None:
         db.close()
 
-
+# ---------------- DB INIT ---------------- #
 def init_db():
-    db = sqlite3.connect(DATABASE)
+    """Initialize database tables if they don’t exist."""
+    db = get_db()
     cursor = db.cursor()
 
+    # Admins table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT,
-        role TEXT CHECK(role IN ('admin','user')) NOT NULL
+    CREATE TABLE IF NOT EXISTS admins (
+        admin_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,    
+        password TEXT NOT NULL
     )
     """)
 
+    # Audit log table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS audit_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
         role TEXT,
         action TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(user_id) REFERENCES users(id)
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
     """)
 
     db.commit()
-    db.close()
 
-
+# ---------------- AUDIT LOGGER ---------------- #
 def log_action(user_id, role, action):
-    db = get_db()
-    db.execute("INSERT INTO audit_log (user_id, role, action) VALUES (?,?,?)",
-               (user_id, role, action))
-    db.commit()
+    """Log an action performed by a user into the audit_log table."""
+
