@@ -5,8 +5,6 @@ from functools import wraps
 audit_bp = Blueprint('audit', __name__, template_folder='templates')
 
 # ---------------- DECORATORS ---------------- #
-# Remove these if you're using the ones from main app.py
-# Otherwise, keep these but remove the ones in main app.py to avoid duplication
 
 def login_required(f):
     @wraps(f)
