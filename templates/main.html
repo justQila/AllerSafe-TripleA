@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AllerSafe Recipe</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <style>
+        /* ====== BASIC PAGE STYLE ====== */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fffaf3; /* light cream */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ====== TITLE (TOP CENTER) ====== */
+        .title {
+            text-align: center;
+            padding: 25px 0 15px 0;
+        }
+
+        .title h1 {
+            font-family: 'Great Vibes', cursive;
+            font-size: 52px;
+            color: #c96f4a; /* oren gelap */
+            margin: 0;
+        }
+
+        /* ====== NAVBAR STYLE (BELOW TITLE) ====== */
+        .navbar {
+            background-color: #7a6b18; /* olive green */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 0;
+        }
+
+        .navbar .links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .navbar a {
+            text-decoration: none;
+            color: white;
+            background: #c96f4a; /* oren */
+            padding: 8px 18px;
+            border-radius: 25px;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+
+        .navbar a:hover {
+            background: #a55533;
+        }
+
+        /* ====== CARDS CONTAINER ====== */
+        .cards {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            margin: 50px 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            width: 240px;
+            text-align: center;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card img {
+            width: 100%;
+            border-radius: 15px;
+        }
+
+        .rating {
+            margin: 12px 0;
+            font-size: 18px;
+            color: #f5a623;
+        }
+
+        .card p {
+            font-size: 15px;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+    <!-- ====== TITLE AT TOP ====== -->
+    <div class="title">
+        <h1>AllerSafe Recipe</h1>
+    </div>
+
+    <!-- ====== NAVBAR BELOW TITLE ====== -->
+    <div class="navbar">
+        <div class="links">
+            <a href="{{ url_for('main') }}"><i class="fas fa-filter"></i> Filters</a>
+            <a href="#"><i class="fas fa-question-circle"></i> FAQ</a>
+            <a href="{{ url_for('login') }}"><i class="fas fa-user"></i> Login</a>
+            <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
+        </div>
+    </div>
+
+    <!-- ====== FOOD CARDS ====== -->
+    <div class="cards">
+        <div class="card">
+            <img src="{{ url_for('static', filename='image/salad.jpg') }}" alt="Salad">
+            <div class="rating">⭐️ 4.9</div>
+            <p>Fresh healthy salad</p>
+        </div>
+
+        <div class="card">
+            <img src="{{ url_for('static', filename='image/ramen.jpg') }}" alt="Ramen">
+            <div class="rating">⭐️ 5.0</div>
+            <p>Delicious ramen bowl</p>
+        </div>
+    </div>
+</body>
+</html>
