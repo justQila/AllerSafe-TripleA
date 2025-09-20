@@ -28,18 +28,23 @@
             margin: 0;
         }
 
+        /* Navbar */
         .navbar {
             background-color: #7a6b18;
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 12px 0;
+            padding: 12px 20px;
         }
 
         .navbar .links {
             display: flex;
-            align-items: center;
-            gap: 20px;
+            gap: 15px;
+            justify-content: center;
+            flex: 1; /* occupy space tengah */
+        }
+
+        .navbar .profile-icon {
+            margin-left: auto; /* push ke hujung kanan */
         }
 
         .navbar a {
@@ -51,12 +56,35 @@
             font-size: 15px;
             display: flex;
             align-items: center;
-            gap: 8px;
-            transition: background 0.3s;
+            gap: 6px;
+            transition: background 0.3s, transform 0.2s;
         }
 
         .navbar a:hover {
             background: #a55533;
+            transform: translateY(-2px);
+        }
+
+        /* Profile icon */
+        .navbar .profile-icon a {
+            background: #c96f4a;
+            padding: 8px 12px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .navbar .profile-icon a:hover {
+            background: #c96f4a;
+            transform: translateY(-2px);
+        }
+
+        .greeting {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 20px;
+            color: #444;
         }
 
         .cards {
@@ -64,6 +92,7 @@
             justify-content: center;
             gap: 50px;
             margin: 50px 0;
+            flex-wrap: wrap;
         }
 
         .card {
@@ -96,27 +125,26 @@
             color: #444;
         }
 
-        /* Floating FAQ Button (sementara) */
+        /* Floating FAQ Button */
         #faqBtn {
             position: fixed;
             bottom: 20px;
             right: 20px;
             background-color: #c96f4a;
             color: white;
-            border: none;
             border-radius: 50%;
             width: 55px;
             height: 55px;
             font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
-            z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
-            text-decoration: none; /* supaya link nampak macam button */
+            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+            text-decoration: none;
+            z-index: 1000;
             transition: background 0.3s;
         }
+
         #faqBtn:hover {
             background-color: #a55533;
         }
@@ -132,11 +160,19 @@
     <div class="navbar">
         <div class="links">
             <a href="#"><i class="fas fa-filter"></i> Filters</a>
-            <a href="{{ url_for('login') }}"><i class="fas fa-user"></i> Login</a>
-            <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
-            <!-- ADMIN LOGIN BUTTON -->
-            <a href="{{ url_for('admin_login') }}"><i class="fas fa-user-shield"></i> Admin Login</a>
+            <a href="#"><i class="fas fa-plus"></i> Add Recipe</a>
+            <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
+        <div class="profile-icon">
+            <a href="{{ url_for('profile') }}" title="Profile">
+                <i class="fas fa-user"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- GREETING -->
+    <div class="greeting">
+        Welcome, {{ username }}!
     </div>
 
     <!-- FOOD CARDS -->
@@ -166,7 +202,7 @@
         </div>
     </div>
 
-    <!-- FLOATING FAQ BUTTON SEMENTARA -->
+    <!-- FLOATING FAQ BUTTON -->
     <a href="#" id="faqBtn" title="FAQ">
         <i class="fas fa-question"></i>
     </a>

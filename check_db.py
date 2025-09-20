@@ -1,15 +1,43 @@
 import sqlite3
+from tabulate import tabulate
 
-# connect ke database
-conn = sqlite3.connect("user.db")
-cursor = conn.cursor()
+def inspect_database(db_path="user.db"):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-#check table users wujud ke tak
-cursor.execute("SELECT name FROM sqlite_master WHERE type= 'table';")
-print("Tables:", cursor.fetchall())
+    # ambil semua nama table
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = [t[0] for t in cursor.fetchall()]
 
-#check columns dalam table users 
-cursor.execute("PRAGMA table_info(users);")
-print("Columns:",cursor.fetchall())
+    print("Senarai table dalam database:")
+    for table in tables:
+        print(f"- {table}")
 
-conn.close()
+    print("\nDetail setiap table:\n")
+
+    # loop semua table
+    for table in tables:
+        print(f"Table: {table}")
+
+        # ambil column info
+        cursor.execute(f"PRAGMA table_info({table});")
+        columns = cursor.fetchall()
+        col_names = [col[1] for col in columns]
+        print("Columns:", col_names)
+
+        # ambil semua data
+        cursor.execute(f"SELECT * FROM {table};")
+        rows = cursor.fetchall()
+        print("Data:")
+        if rows:
+            print(tabulate(rows, headers=col_names, tablefmt="grid"))
+        else:
+            print("  (tiada data)")
+
+        print("-" * 60)
+
+    conn.close()
+
+
+if __name__ == "__main__":
+    inspect_database()
