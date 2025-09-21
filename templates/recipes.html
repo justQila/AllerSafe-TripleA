@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AllerSafe Recipes</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f8f8;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+
+    .recipe {
+      background: #fff;
+      padding: 15px;
+      margin: 10px auto;
+      border-radius: 10px;
+      width: 80%;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .recipe h2 { margin: 0; }
+    .recipe p { margin: 5px 0; }
+
+    /*ADD RECIPE BUTTON*/
+    .add-btn{
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background-color: #b23a2e;
+      color: white;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .add-btn :hover{
+      background-color: #4e100a;
+    }
+    .filter-container{
+      display: flex;
+      justify-content: flex-start;
+      margin: 20px 0 20px 60px;
+    }
+
+    /* Popup styles */
+    .popup {
+      display: none;
+      position: fixed;
+      top: 0px; left: 0px; right: 20px;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .popup-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+    }
+    .popup-content h3 {
+      margin-top: 0;
+    }
+    .popup-content button {
+      margin-top: 10px;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="filter-container">
+  <button class="filter-btn" onclick="openPopup()">FILTERS</button>
+</div>
+
+<a href="{{url_for('add_recipe') }}">
+  <button class="add-btn">➕ Add Recipe</button>
+</a>
+
+<!-- popup filter -->
+{% include "filter-popup.html" %}
+
+<!-- Recipe List -->
+{% if selected %}
+  {% if recipes %}
+    {% for recipe in recipes %}
+      <div class="recipe">
+        <h2>{{ recipe.name }}</h2>
+        <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
+        <p><strong>Rating:</strong> ⭐ {{ recipe.rating }}</p>
+        <a href="/recipe/{{ recipe.id }}">View full recipe</a>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>No recipes match your filter 😢</p>
+  {% endif %}
+{% endif %}
+
+<script>
+  function openPopup() {
+    document.getElementById("filterPopup").style.display = "flex"; // ✅ match ID
+  }
+  function closePopup() {
+    document.getElementById("filterPopup").style.display = "none";
+  }
+</script>
+
+</body>
+</html>

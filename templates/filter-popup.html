@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FILTER ALLERGIES</title>
     <style>
-        /*------GENERAL BODY-----*/
+        /*------GENERAL BODY(css)-----*/
         body{
             font-family: Arial, sans-serif;
             margin: 0;
@@ -126,19 +126,19 @@
     
     <button id="filterBtn">FILTERS</button>
 
-    <div id="filterPopup" class="popup">
+    <div id="filterPopup" class="popup" style="display:none;">
         <div class="popup-content">
             <span class="close" id="closePopup">&times;</span>
             <h3>FILTER ALLERGIES</h3>
-            <form method="POST" action="/filter">
-                <label> <input type="checkbox" name="allergies" value="fruits">Fruits</label>
-                <label> <input type="checkbox" name="allergies" value="nuts & seeds">Nuts & seeds</label>
-                <label> <input type="checkbox" name="allergies" value="vegetables">Vegetables</label>
-                <label> <input type="checkbox" name="allergies" value="animal product">Animal product</label>
+            <form method="GET" action="/">
+                <label><input type="checkbox" name="allergy" value="gluten"> Gluten</label>
+                <label><input type="checkbox" name="allergy" value="dairy"> Dairy</label>
+                <label><input type="checkbox" name="allergy" value="nut"> Nuts</label>
+                <label><input type="checkbox" name="allergy" value="egg"> Egg</label>
                 <button type="submit">Apply Filter</button>
             </form>
         </div>
-     </div>
+    </div>
 
     <script>
         /*elements js*/

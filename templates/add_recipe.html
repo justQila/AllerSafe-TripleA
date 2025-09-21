@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ALLERSAFE RECIPES</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f8f8f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1{
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        form{
+            background: #ecdda5;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        label{
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: #444;
+        }
+
+        input [type="text"]
+        input [type="number"]
+        textarea{
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        textarea{
+            resize: vertical;
+        }
+
+        button{
+            background: #b23a2e;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #4e100a;
+        }
+
+        a{
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #1a3a17;
+            font-weight: bold;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    
+    <h1>ADD RECIPE</h1>
+    <form method = 'POST' action="{{url_for('add_recipe') }}">
+        <label>RECIPE:</label><br>
+        <input type="text" name="name" required><br><br>
+
+        <label>ALLERGEN (comma seperated):</label><br>
+        <input type="text" name="allergens" placeholder="eg. gluten, nut"><br><br>
+
+        <label>INSTRUCTION:</label><br>
+        <textarea name="instruction" id=""></textarea><br><br>
+
+        <label>RATING (0-5):</label><br><br>
+        <input type="number" step="0.1" name="rating" min="0" max="5"><br><br>
+
+        <label>INGREDIENTS (one per line)</label><br>
+        <textarea name="ingredients" rows="6" placeholder="eg.
+        Quinoa - 1 cup
+        Bell pepper - 2, sliced
+        Zucchini - 1, diced
+        Cherry Tomatoes - 1 cup
+        Olive Oil - 2 tbsp"></textarea><br><br>
+
+
+        <button type="submit" >Add Recipe</button>
+    </form>
+    <br>
+    <a href="/">⬅ Back to Home</a>
+
+</body>
+</html>
