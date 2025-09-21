@@ -61,9 +61,23 @@
         a:hover {
             background: #345d31;
         }
+
+        .recipe-photo {
+            display: block;
+            margin: 0 auto 20px auto;
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
+
+    {% if recipe.photo %}
+        <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" alt="{{ recipe.name }}" class="recipe-photo">
+    {% endif %}
+    
     <h1>{{ recipe.name }}</h1>
     <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
     <p><strong>Rating:</strong> {{ recipe.rating }}</p>

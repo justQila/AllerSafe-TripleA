@@ -18,7 +18,7 @@
         }
 
         form{
-            background: #ecdda5;
+            background: #fbf1cb;
             max-width: 500px;
             margin: 0 auto;
             padding: 25px;
@@ -69,7 +69,7 @@
             text-align: center;
             margin-top: 20px;
             text-decoration: none;
-            color: #1a3a17;
+            color: #496d46;
             font-weight: bold;
         }
 
@@ -81,15 +81,15 @@
 <body>
     
     <h1>ADD RECIPE</h1>
-    <form method = 'POST' action="{{url_for('add_recipe') }}">
+    <form method = 'POST' action="{{url_for('add_recipe') }}" enctype="multipart/form-data">
         <label>RECIPE:</label><br>
         <input type="text" name="name" required><br><br>
 
+        <label>PHOTO:</label><br>
+        <input type="file" name="photo" accept="image/*"><br><br>
+
         <label>ALLERGEN (comma seperated):</label><br>
         <input type="text" name="allergens" placeholder="eg. gluten, nut"><br><br>
-
-        <label>INSTRUCTION:</label><br>
-        <textarea name="instruction" id=""></textarea><br><br>
 
         <label>RATING (0-5):</label><br><br>
         <input type="number" step="0.1" name="rating" min="0" max="5"><br><br>
@@ -101,6 +101,9 @@
         Zucchini - 1, diced
         Cherry Tomatoes - 1 cup
         Olive Oil - 2 tbsp"></textarea><br><br>
+
+        <label>INSTRUCTION:</label><br>
+        <textarea name="instruction" id=""></textarea><br><br>
 
 
         <button type="submit" >Add Recipe</button>

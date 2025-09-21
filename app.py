@@ -2,12 +2,22 @@
 
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-import re
+import os
+from werkzeug.utils import secure_filename
+from PIL import Image
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, "recipe.db")
+
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///./recipe.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 db = SQLAlchemy(app)
 
@@ -18,6 +28,7 @@ class Recipe(db.Model):
     allergens = db.Column(db.String(200), nullable=False, default="")
     instruction = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Float, default=0.0)
+    photo = db.Column(db.String(200))  
     ingredients = db.relationship('Ingredient', backref='recipe', cascade="all, delete-orphan")
 
 class Ingredient(db.Model):
@@ -34,8 +45,9 @@ with app.app_context():
             name="Quinoa & Roasted Veggie Salad",
             allergens="gluten, dairy, nut, egg",
             instruction="1. Cook quinoa.\n2. Roast zucchini and bell pepper.\n3. Season with salt, pepper, and olive oil",
-            rating=4.9
-        )
+            rating=4.9,
+            photo=None  
+)
         db.session.add(recipe1)
         db.session.commit()
 
@@ -56,6 +68,8 @@ def recipe_contains_allergen(recipe: Recipe, selected_allergy: str) -> bool:
     allergens_list = [a.strip().lower() for a in recipe.allergens.split(",")]
     return any(selected_allergy.strip().lower() in allergen for allergen in allergens_list)
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ---------------- ROUTES ----------------
 @app.route('/', methods=['GET'])
@@ -86,11 +100,25 @@ def add_recipe():
         instruction = request.form['instruction']
         rating = float(request.form['rating']) if request.form['rating'] else 0.0
 
+        photo = request.files.get('photo')
+        photo_filename = None
+        if photo and allowed_file(photo.filename):
+            filename = secure_filename(photo.filename)
+            photo_filename = filename
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename) 
+            photo.save(filepath)  # save original uploaded file
+            # Resize image
+            max_size = (350, 350)
+            img = Image.open(filepath)
+            img.thumbnail(max_size)  
+            img.save(filepath)
         recipe = Recipe(
             name=name,
             allergens=allergens,
             instruction=instruction,
-            rating=rating
+            rating=rating,
+            photo=photo_filename
         )
         db.session.add(recipe)
         db.session.commit()
