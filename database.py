@@ -1,23 +1,17 @@
 import sqlite3
-import hashlib
-import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+import secrets
+import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
-# Simple console logging for testing
-def send_reset_email(email, token):
-    reset_url = f"http://localhost:5000/reset-password/{token}"
-    print("=" * 50)
-    print("EMAIL WOULD BE SENT:")
-    print(f"To: {email}")
-    print(f"Subject: Password Reset Request")
-    print(f"Reset URL: {reset_url}")
-    print("=" * 50)
+DB_NAME = 'admin_panel.db'
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+SENDGRID_API_KEY = os.getenv("MeowMoew")  # will send directly for merging NOT REAL API KEY
+FROM_EMAIL = os.getenv("adore623@gmail.com")  # The verified sender email in SendGrid
 
-def verify_password(password, password_hash):
-    return hash_password(password) == password_hash
+# ---------------------- DATABASE INITIALIZATION ----------------------
 
 def init_db():
     conn = None
@@ -142,21 +136,6 @@ def init_db():
                 allergies_data
             )
         
-        # Create three admin users if missing
-        admins = [
-            ('admin1', 'admin1@example.com', 'admin123'),
-            ('admin2', 'admin2@example.com', 'admin456'),
-            ('admin3', 'admin3@example.com', 'admin789')
-        ]
-        for username, email, password in admins:
-            existing_admin = conn.execute('SELECT * FROM admins WHERE username = ?', (username,)).fetchone()
-            if not existing_admin:
-                password_hash = hash_password(password)
-                conn.execute(
-                    'INSERT INTO admins (username, email, password_hash) VALUES (?, ?, ?)',
-                    (username, email, password_hash)
-                )
-        
         # Sample users
         sample_users = [
             ('john_doe', 'john@example.com', 'John Doe'),
@@ -211,316 +190,356 @@ def init_db():
         if conn:
             conn.close()
 
-# Allergy management functions
-def get_all_allergies():
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        allergies = conn.execute('SELECT * FROM allergies ORDER BY category, name').fetchall()
-        return allergies
+# ---------------------- PASSWORD UTILS ----------------------
 
-def get_allergy_by_id(allergy_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        allergy = conn.execute('SELECT * FROM allergies WHERE id = ?', (allergy_id,)).fetchone()
-        return allergy
+def hash_password(password):
+    return generate_password_hash(password)
+
+def verify_password(password, password_hash):
+    return check_password_hash(password_hash, password)
+
+# ---------------------- ADMIN FUNCTIONS ----------------------
+
+def get_admin_by_username(username):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    admin = conn.execute('SELECT * FROM admins WHERE username = ?', (username,)).fetchone()
+    conn.close()
+    return dict(admin) if admin else None
+
+def get_admin_by_email(email):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    admin = conn.execute("SELECT * FROM admins WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    return admin
+
+
+def get_admin_by_id(admin_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    admin = conn.execute('SELECT * FROM admins WHERE id = ?', (admin_id,)).fetchone()
+    conn.close()
+    return dict(admin) if admin else None
+
+def seed_admins():
+    admins = [
+        {"username": "admin1", "password": "password1", "email": "adore623@gmail.com"},
+        {"username": "admin2", "password": "password2", "email": "admin2@example.com"},
+        {"username": "admin3", "password": "password3", "email": "admin3@example.com"}
+    ]
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    for a in admins:
+        # Hash the password before storing
+        hashed = generate_password_hash(a['password'])
+        try:
+            cursor.execute("INSERT INTO admins (username, password_hash, email) VALUES (?, ?, ?)",
+                           (a['username'], hashed, a['email']))
+        except sqlite3.IntegrityError:
+            pass  # Admin already exists
+    
+    conn.commit()
+    conn.close()
+
+# ---------------------- PASSWORD RESET ----------------------
+
+def set_reset_token(email, token):
+    admin = get_admin_by_email(email)
+    if not admin:
+        return False
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('INSERT INTO password_reset_tokens (admin_id, token, expires_at) VALUES (?, ?, ?)',
+                 (admin['id'], token, expires_at))
+    conn.commit()
+    conn.close()
+    return True
+
+def is_token_valid(token):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT * FROM password_reset_tokens WHERE token = ?', (token,)).fetchone()
+    conn.close()
+    if row and datetime.strptime(row['expires_at'], "%Y-%m-%d %H:%M:%S") > datetime.utcnow():
+        return True
+    return False
+
+def get_admin_by_token(token):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT a.* FROM admins a JOIN password_reset_tokens t ON a.id = t.admin_id WHERE t.token = ?', (token,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def update_password(admin_id, new_password):
+    hashed = hash_password(new_password)
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('UPDATE admins SET password_hash = ? WHERE id = ?', (hashed, admin_id))
+    conn.commit()
+    conn.close()
+
+# ---------------------- SENDGRID EMAIL ----------------------
+def send_reset_email(to_email, reset_url):
+    html_content = f"""
+    <html>
+    <body>
+        <p>Hello,</p>
+        <p>We received a request to reset your password for your AllerSafe Recipe(s) account.</p>
+        <p><a href="{reset_url}" style="padding:10px 20px;background-color:#af4c0f;color:white;text-decoration:none;border-radius:5px;">Reset Password</a></p>
+        <p>If you did not request a password reset, please ignore this email.</p>
+    </body>
+    </html>
+    """
+    
+    message = Mail(
+        from_email=FROM_EMAIL,
+        to_emails=to_email,
+        subject="Password Reset - AllerSafe Recipe(s)",
+        html_content=html_content
+    )
+    
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        print(f"Email sent! Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# ---------------------- AUDIT LOG ----------------------
+
+def add_audit_log(admin_id, action, entity_type=None, entity_id=None, details=None, ip_address=None):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('''
+        INSERT INTO audit_log (admin_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (admin_id, action, entity_type, entity_id, details, ip_address))
+    conn.commit()
+    conn.close()
+
+def get_audit_logs(limit=None):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    query = 'SELECT * FROM audit_log ORDER BY created_at DESC'
+    if limit:
+        query += f' LIMIT {limit}'
+    logs = conn.execute(query).fetchall()
+    conn.close()
+    return [dict(log) for log in logs]
+
+# ---------------------- USERS ----------------------
+
+def get_all_users():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    users = conn.execute('SELECT * FROM users').fetchall()
+    conn.close()
+    return [dict(u) for u in users]
+
+def get_user_by_id(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def update_user_status(user_id, status):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('UPDATE users SET status = ? WHERE id = ?', (status, user_id))
+    conn.commit()
+    conn.close()
+
+def delete_user(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------- RECIPES ----------------------
+
+def get_all_recipes():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    recipes = conn.execute('SELECT * FROM recipes').fetchall()
+    conn.close()
+    return [dict(r) for r in recipes]
+
+def get_recipe_by_id(recipe_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    recipe = conn.execute('SELECT * FROM recipes WHERE id = ?', (recipe_id,)).fetchone()
+    conn.close()
+    return dict(recipe) if recipe else None
+
+def update_recipe_status(recipe_id, status):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('UPDATE recipes SET status = ? WHERE id = ?', (status, recipe_id))
+    conn.commit()
+    conn.close()
+
+def delete_recipe(recipe_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('DELETE FROM recipes WHERE id = ?', (recipe_id,))
+    conn.commit()
+    conn.close()
+
+def approve_recipe(recipe_id):
+    update_recipe_status(recipe_id, 'active')
+
+def reject_recipe(recipe_id, reason):
+    update_recipe_status(recipe_id, 'rejected')
+
+# ---------------------- RECIPE REPORTS ----------------------
+
+def get_all_recipe_reports():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    reports = conn.execute('SELECT * FROM recipe_reports').fetchall()
+    conn.close()
+    return [dict(r) for r in reports]
+
+def handle_recipe_report(report_id, admin_id, action_taken):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('UPDATE recipe_reports SET status = "handled", handled_by = ?, action_taken = ? WHERE id = ?', 
+                 (admin_id, action_taken, report_id))
+    conn.commit()
+    conn.close()
+
+# ---------------------- ALLERGIES ----------------------
+
+def get_all_allergies():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    allergies = conn.execute('SELECT * FROM allergies').fetchall()
+    conn.close()
+    return [dict(a) for a in allergies]
 
 def get_recipe_allergies(recipe_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        allergies = conn.execute('''
-            SELECT a.* FROM allergies a 
-            JOIN recipe_allergies ra ON a.id = ra.allergy_id 
-            WHERE ra.recipe_id = ?
-        ''', (recipe_id,)).fetchall()
-        return allergies
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''
+        SELECT a.* FROM allergies a 
+        JOIN recipe_allergies ra ON a.id = ra.allergy_id 
+        WHERE ra.recipe_id = ?
+    ''', (recipe_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 def get_allergies_for_recipes(recipe_ids):
     if not recipe_ids:
         return {}
-    
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        placeholders = ','.join('?' * len(recipe_ids))
-        query = f'''
-            SELECT ra.recipe_id, a.id, a.category, a.name, a.cross_reactivity, a.notes 
-            FROM allergies a 
-            JOIN recipe_allergies ra ON a.id = ra.allergy_id 
-            WHERE ra.recipe_id IN ({placeholders})
-            ORDER BY ra.recipe_id, a.name
-        '''
-        results = conn.execute(query, recipe_ids).fetchall()
-        
-        allergies_map = {}
-        for row in results:
-            recipe_id = row['recipe_id']
-            allergy_info = {
-                'id': row['id'],
-                'category': row['category'],
-                'name': row['name'],
-                'cross_reactivity': row['cross_reactivity'],
-                'notes': row['notes']
-            }
-            if recipe_id not in allergies_map:
-                allergies_map[recipe_id] = []
-            allergies_map[recipe_id].append(allergy_info)
-        
-        for r_id in recipe_ids:
-            if r_id not in allergies_map:
-                allergies_map[r_id] = []
-                
-        return allergies_map
-
-def add_recipe_allergy(recipe_id, allergy_id):
-    try:
-        with sqlite3.connect('admin_panel.db') as conn:
-            conn.row_factory = sqlite3.Row
-            existing = conn.execute(
-                'SELECT * FROM recipe_allergies WHERE recipe_id = ? AND allergy_id = ?',
-                (recipe_id, allergy_id)
-            ).fetchone()
-            
-            if not existing:
-                conn.execute(
-                    'INSERT INTO recipe_allergies (recipe_id, allergy_id) VALUES (?, ?)',
-                    (recipe_id, allergy_id)
-                )
-                conn.commit()
-    except Exception as e:
-        print(f"Error adding recipe allergy: {e}")
-        raise e
-
-def remove_recipe_allergy(recipe_id, allergy_id):
-    try:
-        with sqlite3.connect('admin_panel.db') as conn:
-            conn.execute(
-                'DELETE FROM recipe_allergies WHERE recipe_id = ? AND allergy_id = ?',
-                (recipe_id, allergy_id)
-            )
-            conn.commit()
-    except Exception as e:
-        print(f"Error removing recipe allergy: {e}")
-        raise e
-
-# Admin management functions
-def get_admin_by_username(username):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE username = ?', (username,)
-        ).fetchone()
-        return admin
-
-def get_admin_by_email(email):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE email = ?', (email,)
-        ).fetchone()
-        return admin
-
-def get_admin_by_id(admin_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE id = ?', (admin_id,)
-        ).fetchone()
-        return admin
-
-def set_reset_token(email, token):
-    expiry = datetime.now() + timedelta(hours=1)
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.execute(
-            'UPDATE admins SET reset_token = ?, token_expiry = ? WHERE email = ?',
-            (token, expiry.isoformat(), email)
-        )
-        conn.commit()
-
-def get_admin_by_token(token):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE reset_token = ?', (token,)
-        ).fetchone()
-        return admin
-
-def is_token_valid(token):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE reset_token = ? AND token_expiry > ?',
-            (token, datetime.now().isoformat())
-        ).fetchone()
-        return admin is not None
-
-def update_password(admin_id, new_password):
-    password_hash = hash_password(new_password)
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.execute(
-            'UPDATE admins SET password_hash = ?, reset_token = NULL, token_expiry = NULL WHERE id = ?',
-            (password_hash, admin_id)
-        )
-        conn.commit()
-
-# User management functions
-def get_all_users():
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        users = conn.execute('SELECT * FROM users ORDER BY created_at DESC').fetchall()
-        return users
-
-def get_user_by_id(user_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
-        return user
-
-def get_user_by_username(username):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-        return user
-
-def update_user_status(user_id, status):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.execute('UPDATE users SET status = ? WHERE id = ?', (status, user_id))
-        conn.commit()
-
-def delete_user(user_id):
-    try:
-        with sqlite3.connect('admin_panel.db') as conn:
-            conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
-            conn.commit()
-    except Exception as e:
-        print(f"Error deleting user: {e}")
-        raise e
-
-# Recipe management functions
-def get_all_recipes():
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        recipes = conn.execute('''
-            SELECT r.*, u.username as author_username, u.full_name as author_name 
-            FROM recipes r 
-            LEFT JOIN users u ON r.author_id = u.id 
-            ORDER BY r.id ASC
-        ''').fetchall()
-        return recipes
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    query = f"SELECT * FROM recipe_allergies WHERE recipe_id IN ({','.join(['?']*len(recipe_ids))})"
+    rows = conn.execute(query, recipe_ids).fetchall()
+    conn.close()
+    result = {}
+    for row in rows:
+        result.setdefault(row['recipe_id'], []).append(row['allergy_id'])
+    return result
 
 def get_recipes_by_allergy(allergy_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        recipes = conn.execute('''
-            SELECT r.*, u.username as author_username, u.full_name as author_name
-            FROM recipes r 
-            LEFT JOIN users u ON r.author_id = u.id
-            JOIN recipe_allergies ra ON r.id = ra.recipe_id 
-            WHERE ra.allergy_id = ? AND r.status = 'active'
-            ORDER BY r.id ASC
-        ''', (allergy_id,)).fetchall()
-        return recipes
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''
+        SELECT r.* FROM recipes r
+        JOIN recipe_allergies ra ON r.id = ra.recipe_id
+        WHERE ra.allergy_id = ?
+    ''', (allergy_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 def get_recipes_without_allergy(allergy_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        recipes = conn.execute('''
-            SELECT r.*, u.username as author_username, u.full_name as author_name
-            FROM recipes r 
-            LEFT JOIN users u ON r.author_id = u.id
-            WHERE r.id NOT IN (
-                SELECT recipe_id FROM recipe_allergies WHERE allergy_id = ?
-            ) AND r.status = 'active'
-            ORDER BY r.id ASC
-        ''', (allergy_id,)).fetchall()
-        return recipes
-
-def get_recipe_by_id(recipe_id):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        recipe = conn.execute('''
-            SELECT r.*, u.username as author_username, u.full_name as author_name 
-            FROM recipes r 
-            LEFT JOIN users u ON r.author_id = u.id 
-            WHERE r.id = ?
-        ''', (recipe_id,)).fetchone()
-        return recipe
-
-def get_recipe_by_title(title):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        recipe = conn.execute('''
-            SELECT r.*, u.username as author_username, u.full_name as author_name 
-            FROM recipes r 
-            LEFT JOIN users u ON r.author_id = u.id 
-            WHERE r.title = ?
-        ''', (title,)).fetchone()
-        return recipe
-
-def update_recipe_status(recipe_id, status):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.execute('UPDATE recipes SET status = ? WHERE id = ?', (status, recipe_id))
-        conn.commit()
-
-def update_recipe(recipe_id, title, description, ingredients, instructions, category, author_id):
-    try:
-        with sqlite3.connect('admin_panel.db') as conn:
-            conn.execute('''
-                UPDATE recipes 
-                SET title = ?, description = ?, ingredients = ?, instructions = ?, category = ?, author_id = ?
-                WHERE id = ?
-            ''', (title, description, ingredients, instructions, category, author_id, recipe_id))
-            conn.commit()
-    except Exception as e:
-        print(f"Error updating recipe: {e}")
-        raise e
-
-def delete_recipe(recipe_id):
-    try:
-        with sqlite3.connect('admin_panel.db') as conn:
-            conn.execute('DELETE FROM recipes WHERE id = ?', (recipe_id,))
-            conn.commit()
-    except Exception as e:
-        print(f"Error deleting recipe: {e}")
-        raise e
-
-# Audit log functions
-def add_audit_log(admin_id, action, target_type=None, target_id=None, details=None, ip_address=None):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.execute(
-            'INSERT INTO audit_log (admin_id, action, target_type, target_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-            (admin_id, action, target_type, target_id, details, ip_address)
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''
+        SELECT * FROM recipes WHERE id NOT IN (
+            SELECT recipe_id FROM recipe_allergies WHERE allergy_id = ?
         )
-        conn.commit()
+    ''', (allergy_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
-def get_audit_logs(limit=50):
-    with sqlite3.connect('admin_panel.db') as conn:
-        conn.row_factory = sqlite3.Row
-        logs = conn.execute('''
-            SELECT al.*, a.username as admin_username 
-            FROM audit_log al 
-            LEFT JOIN admins a ON al.admin_id = a.id 
-            ORDER BY al.created_at DESC 
-            LIMIT ?
-        ''', (limit,)).fetchall()
-        return logs
+# ---------------------- GUIDELINES ----------------------
 
-# Main execution for testing
-if __name__ == '__main__':
-    init_db()
-    print("\nAttempting to retrieve all recipes...")
-    recipes = get_all_recipes()
-    if recipes:
-        print(f"Found {len(recipes)} recipes.")
-        for r in recipes[:3]:
-            print(f"- {r['title']} by {r['author_username']}")
-    
-    print("\nAttempting to retrieve a specific recipe by ID...")
-    recipe_id_to_fetch = recipes[0]['id'] if recipes else 1
-    recipe = get_recipe_by_id(recipe_id_to_fetch)
-    if recipe:
-        print(f"Found recipe: {recipe['title']}")
-        
-    print("\nAttempting to update a user status...")
-    update_user_status(1, 'inactive')
-    user = get_user_by_id(1)
-    if user:
-        print(f"User '{user['username']}' status is now '{user['status']}'.")
+def get_all_guidelines():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT * FROM guidelines').fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_guideline_by_id(guideline_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT * FROM guidelines WHERE id = ?', (guideline_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def add_guideline(title, content, category, severity):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('INSERT INTO guidelines (title, content, category, severity) VALUES (?, ?, ?, ?)',
+                 (title, content, category, severity))
+    conn.commit()
+    conn.close()
+
+def update_guideline(guideline_id, title, content, category, severity):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('UPDATE guidelines SET title=?, content=?, category=?, severity=? WHERE id=?',
+                 (title, content, category, severity, guideline_id))
+    conn.commit()
+    conn.close()
+
+def insert_guideline(title, content, category, severity):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO guidelines (title, content, category, severity) VALUES (?, ?, ?, ?)',
+                   (title, content, category, severity))
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+    return new_id
+
+def delete_guideline(guideline_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('DELETE FROM guidelines WHERE id = ?', (guideline_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------- USER WARNINGS ----------------------
+
+def add_user_warning(user_id, admin_id, guideline_id=None, custom_reason=None, severity='warning'):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('''
+        INSERT INTO user_warnings (user_id, admin_id, guideline_id, custom_reason, severity)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, admin_id, guideline_id, custom_reason, severity))
+    conn.commit()
+    conn.close()
+
+def get_all_warnings():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT * FROM user_warnings').fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_user_warnings(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT * FROM user_warnings WHERE user_id = ?', (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# ---------------------- PENDING RECIPES ----------------------
+
+def get_pending_recipes():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT * FROM recipes WHERE status = "pending"').fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# ---------------------- END ----------------------
