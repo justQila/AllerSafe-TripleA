@@ -4,7 +4,7 @@ from functools import wraps
 from database import *
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.config['SECRET_KEY'] = 'CatLuvTun123'
 
 # Login required decorator
 def login_required(f):
@@ -70,23 +70,25 @@ def logout():
 @login_required
 def dashboard():
     admin = get_admin_by_id(session['admin_id'])
-    
+
     # Get stats for dashboard
-    conn = get_db_connection()
-    user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-    recipe_count = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
-    active_users = conn.execute('SELECT COUNT(*) FROM users WHERE status = "active"').fetchone()[0]
-    conn.close()
-    
+    with sqlite3.connect('admin_panel.db') as conn:
+        conn.row_factory = sqlite3.Row
+        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        recipe_count = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
+        active_users = conn.execute('SELECT COUNT(*) FROM users WHERE status = "active"').fetchone()[0]
+
     # Get recent audit logs
     logs = get_audit_logs(limit=5)
-    
-    return render_template('dashboard.html', 
-                          admin=admin, 
-                          user_count=user_count, 
-                          recipe_count=recipe_count, 
-                          active_users=active_users,
-                          logs=logs)
+
+    return render_template(
+        'dashboard.html',
+        admin=admin,
+        user_count=user_count,
+        recipe_count=recipe_count,
+        active_users=active_users,
+        logs=logs
+    )
 
 @app.route('/user-management')
 @login_required
@@ -269,6 +271,7 @@ def delete_recipe_route(recipe_id):
     
     return redirect(url_for('recipe_management'))
 
+
 @app.route('/manage-recipe-allergies/<int:recipe_id>', methods=['GET', 'POST'])
 @login_required
 def manage_recipe_allergies(recipe_id):
@@ -278,32 +281,43 @@ def manage_recipe_allergies(recipe_id):
         return redirect(url_for('recipe_management'))
     
     if request.method == 'POST':
-        # Update recipe allergies
-        selected_allergies = request.form.getlist('allergies')
+        try:
+            # Use a single connection for the entire transaction
+            with sqlite3.connect('admin_panel.db') as conn:
+                conn.row_factory = sqlite3.Row
+                
+                selected_allergies = request.form.getlist('allergies')
+                
+                # Step 1: Remove all existing allergies for this recipe
+                conn.execute('DELETE FROM recipe_allergies WHERE recipe_id = ?', (recipe_id,))
+                
+                # Step 2: Add selected allergies in a single batch
+                allergy_data = [(recipe_id, int(allergy_id)) for allergy_id in selected_allergies]
+                if allergy_data:
+                    conn.executemany(
+                        'INSERT INTO recipe_allergies (recipe_id, allergy_id) VALUES (?, ?)',
+                        allergy_data
+                    )
+                
+
+                conn.commit()
+            
+            add_audit_log(
+                session['admin_id'], 
+                'update_recipe_allergies', 
+                'recipe', 
+                recipe_id, 
+                f"Updated allergies for recipe: {recipe['title']}",
+                request.remote_addr
+            )
+            
+            flash('Recipe allergies updated successfully.', 'success')
+            return redirect(url_for('recipe_management'))
         
-        # Remove all existing allergies for this recipe
-        conn = get_db_connection()
-        conn.execute('DELETE FROM recipe_allergies WHERE recipe_id = ?', (recipe_id,))
-        
-        # Add selected allergies
-        for allergy_id in selected_allergies:
-            add_recipe_allergy(recipe_id, int(allergy_id))
-        
-        conn.commit()
-        conn.close()
-        
-        # Add to audit log
-        add_audit_log(
-            session['admin_id'], 
-            'update_recipe_allergies', 
-            'recipe', 
-            recipe_id, 
-            f"Updated allergies for recipe: {recipe['title']}",
-            request.remote_addr
-        )
-        
-        flash('Recipe allergies updated successfully.', 'success')
-        return redirect(url_for('recipe_management'))
+        except Exception as e:
+            flash(f'An error occurred: {e}', 'error')
+            print(f"Error in manage_recipe_allergies: {e}")
+            return redirect(url_for('manage_recipe_allergies', recipe_id=recipe_id))
     
     # GET request - show form
     all_allergies = get_all_allergies()
@@ -407,6 +421,7 @@ def change_password():
             return redirect(url_for('dashboard'))
     
     return render_template('change_password.html')
+
 
 if __name__ == '__main__':
     init_db()
