@@ -8,8 +8,9 @@ from sendgrid.helpers.mail import Mail
 
 DB_NAME = 'admin_panel.db'
 
-SENDGRID_API_KEY = os.getenv("MeowMoew")  # will send directly for merging NOT REAL API KEY
-FROM_EMAIL = os.getenv("adore623@gmail.com")  # The verified sender email in SendGrid
+# FIXED: Proper environment variable usage
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "adore623@gmail.com")
 
 # ---------------------- DATABASE INITIALIZATION ----------------------
 
@@ -31,6 +32,18 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 reset_token TEXT,
                 token_expiry DATETIME
+            )
+        ''')
+        
+        # FIXED: Add missing password_reset_tokens table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER,
+                token TEXT NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
             )
         ''')
         
@@ -96,6 +109,53 @@ def init_db():
                 allergy_id INTEGER,
                 FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE,
                 FOREIGN KEY (allergy_id) REFERENCES allergies (id) ON DELETE CASCADE
+            )
+        ''')
+        
+        # FIXED: Add missing recipe_reports table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS recipe_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipe_id INTEGER,
+                reporter_id INTEGER,
+                reason TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'pending',
+                handled_by INTEGER,
+                action_taken TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+                FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY (handled_by) REFERENCES admins(id) ON DELETE SET NULL
+            )
+        ''')
+        
+        # FIXED: Add missing guidelines table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS guidelines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL,
+                severity TEXT DEFAULT 'info',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # FIXED: Add missing user_warnings table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_warnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                admin_id INTEGER,
+                guideline_id INTEGER,
+                custom_reason TEXT,
+                severity TEXT DEFAULT 'warning',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+                FOREIGN KEY (guideline_id) REFERENCES guidelines(id) ON DELETE SET NULL
             )
         ''')
         
@@ -179,6 +239,9 @@ def init_db():
                     (title, description, ingredients, instructions, category, author_id)
                 )
         
+        # FIXED: Ensure admin accounts are created properly
+        seed_admins()
+        
         conn.commit()
         print("Database initialized successfully!")
     except Exception as e:
@@ -212,8 +275,7 @@ def get_admin_by_email(email):
     conn.row_factory = sqlite3.Row
     admin = conn.execute("SELECT * FROM admins WHERE email = ?", (email,)).fetchone()
     conn.close()
-    return admin
-
+    return dict(admin) if admin else None
 
 def get_admin_by_id(admin_id):
     conn = sqlite3.connect(DB_NAME)
@@ -222,30 +284,47 @@ def get_admin_by_id(admin_id):
     conn.close()
     return dict(admin) if admin else None
 
+# FIXED: Improved seed_admins function with proper error handling
 def seed_admins():
-    admins = [
-        {"username": "admin1", "password": "password1", "email": "adore623@gmail.com"},
-        {"username": "admin2", "password": "password2", "email": "admin2@example.com"},
-        {"username": "admin3", "password": "password3", "email": "admin3@example.com"}
-    ]
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    for a in admins:
-        # Hash the password before storing
-        hashed = generate_password_hash(a['password'])
-        try:
-            cursor.execute("INSERT INTO admins (username, password_hash, email) VALUES (?, ?, ?)",
-                           (a['username'], hashed, a['email']))
-        except sqlite3.IntegrityError:
-            pass  # Admin already exists
-    
-    conn.commit()
-    conn.close()
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        # Check if admins already exist
+        existing_count = cursor.execute("SELECT COUNT(*) FROM admins").fetchone()[0]
+        if existing_count > 0:
+            print("Admin accounts already exist, skipping seed.")
+            return
+        
+        admins = [
+            {"username": "admin1", "password": "password1", "email": "adore623@gmail.com"},
+            {"username": "admin2", "password": "password2", "email": "admin2@example.com"},
+            {"username": "admin3", "password": "password3", "email": "admin3@example.com"}
+        ]
+        
+        for a in admins:
+            # Hash the password before storing
+            hashed = generate_password_hash(a['password'])
+            try:
+                cursor.execute("INSERT INTO admins (username, password_hash, email) VALUES (?, ?, ?)",
+                               (a['username'], hashed, a['email']))
+            except sqlite3.IntegrityError:
+                pass  # Admin already exists, skip
+        
+        conn.commit()
+        print("Admin accounts created successfully!")
+    except Exception as e:
+        print(f"Error seeding admins: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
 # ---------------------- PASSWORD RESET ----------------------
 
+# FIXED: Correct password reset functions
 def set_reset_token(email, token):
     admin = get_admin_by_email(email)
     if not admin:
@@ -283,6 +362,10 @@ def update_password(admin_id, new_password):
 
 # ---------------------- SENDGRID EMAIL ----------------------
 def send_reset_email(to_email, reset_url):
+    if not SENDGRID_API_KEY:
+        print("Warning: SENDGRID_API_KEY not set")
+        return
+        
     html_content = f"""
     <html>
     <body>
@@ -310,14 +393,22 @@ def send_reset_email(to_email, reset_url):
 
 # ---------------------- AUDIT LOG ----------------------
 
-def add_audit_log(admin_id, action, entity_type=None, entity_id=None, details=None, ip_address=None):
+def add_audit_log(admin_id=None, user_id=None, action=None, entity_type=None, entity_id=None, details=None, ip_address=None):
+    """Add audit log entry for both admin and user actions"""
+    user_type = 'admin' if admin_id else 'user' if user_id else 'system'
+    
     conn = sqlite3.connect(DB_NAME)
     conn.execute('''
-        INSERT INTO audit_log (admin_id, action, entity_type, entity_id, details, ip_address)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (admin_id, action, entity_type, entity_id, details, ip_address))
+        INSERT INTO audit_log (admin_id, user_id, user_type, action, target_type, target_id, details, ip_address)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (admin_id, user_id, user_type, action, entity_type, entity_id, details, ip_address))
     conn.commit()
     conn.close()
+
+def add_user_audit_log(user_id, action, entity_type=None, entity_id=None, details=None, ip_address=None):
+    """Convenience function to log user actions"""
+    add_audit_log(user_id=user_id, action=action, entity_type=entity_type, 
+                  entity_id=entity_id, details=details, ip_address=ip_address)
 
 def get_audit_logs(limit=None):
     conn = sqlite3.connect(DB_NAME)
@@ -329,6 +420,28 @@ def get_audit_logs(limit=None):
     conn.close()
     return [dict(log) for log in logs]
 
+def upgrade_audit_log_table():
+    """Upgrade audit_log table to support both admin and user actions"""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        # Check if user_id column exists
+        cursor = conn.execute("PRAGMA table_info(audit_log)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'user_id' not in columns:
+            conn.execute('ALTER TABLE audit_log ADD COLUMN user_id INTEGER')
+            conn.commit()
+            print("Added user_id column to audit_log table")
+        
+        if 'user_type' not in columns:
+            conn.execute('ALTER TABLE audit_log ADD COLUMN user_type TEXT DEFAULT "admin"')
+            conn.commit()
+            print("Added user_type column to audit_log table")
+            
+    except Exception as e:
+        print(f"Error upgrading table: {e}")
+    finally:
+        conn.close()
 # ---------------------- USERS ----------------------
 
 def get_all_users():
@@ -356,6 +469,47 @@ def delete_user(user_id):
     conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
     conn.close()
+
+def get_all_recipes_with_authors():
+    """Get all recipes with author information joined"""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    recipes = conn.execute('''
+        SELECT r.*, u.username as author_username, u.full_name as author_name
+        FROM recipes r
+        LEFT JOIN users u ON r.author_id = u.id
+    ''').fetchall()
+    conn.close()
+    return [dict(r) for r in recipes]
+
+def get_recipes_by_allergy_with_authors(allergy_id):
+    """Get recipes by allergy with author information"""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''
+        SELECT r.*, u.username as author_username, u.full_name as author_name
+        FROM recipes r
+        LEFT JOIN users u ON r.author_id = u.id
+        JOIN recipe_allergies ra ON r.id = ra.recipe_id
+        WHERE ra.allergy_id = ?
+    ''', (allergy_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_recipes_without_allergy_with_authors(allergy_id):
+    """Get recipes without specific allergy with author information"""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''
+        SELECT r.*, u.username as author_username, u.full_name as author_name
+        FROM recipes r
+        LEFT JOIN users u ON r.author_id = u.id
+        WHERE r.id NOT IN (
+            SELECT recipe_id FROM recipe_allergies WHERE allergy_id = ?
+        )
+    ''', (allergy_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 # ---------------------- RECIPES ----------------------
 
@@ -542,4 +696,13 @@ def get_pending_recipes():
     conn.close()
     return [dict(r) for r in rows]
 
-# ---------------------- END ----------------------
+# ---------------------- MAIN EXECUTION ----------------------
+
+if __name__ == "__main__":
+    print("Initializing database with fixes...")
+    init_db()
+    print("Database initialization complete!")
+    print("\nYou can now log in with:")
+    print("Username: admin1, Password: password1")
+    print("Username: admin2, Password: password2") 
+    print("Username: admin3, Password: password3")
