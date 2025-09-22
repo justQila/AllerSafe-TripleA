@@ -415,6 +415,25 @@ def audit_log():
     
     return render_template('audit_log.html', logs=logs)
 
+@app.route('/upgrade-db')
+@login_required
+def upgrade_database():
+    """Upgrade database schema"""
+    try:
+        from database import upgrade_audit_log_table
+        upgrade_audit_log_table()
+        flash("Database upgraded successfully! audit_log table now supports both admin and user actions.", 'success')
+        
+        # Log this action
+        add_audit_log(admin_id=session['admin_id'], action='Database Upgraded', 
+                      details='Added user_id and user_type columns to audit_log', 
+                      ip_address=request.remote_addr)
+        
+    except Exception as e:
+        flash(f"Error upgrading database: {e}", 'error')
+    
+    return redirect(url_for('audit_log'))
+
 # ---------------------- CHANGE PASSWORD ----------------------
 
 @app.route('/change-password', methods=['GET', 'POST'])
