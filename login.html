@@ -5,7 +5,6 @@
 {% block auth_content %}
 <div class="auth-container">
     <div class="auth-card">
-        <!-- NEW: Corner link moved to the very top of the card -->
         <div class="text-end mb-2">
             <a href="{{ url_for('temp_user_login') }}" class="text-muted small">User Login →</a>
         </div>
@@ -23,7 +22,12 @@
                 </div>
                 <div class="mb-3">
                     <label for="password" class="form-label">PASSWORD</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="password-container">
+                        <input type="password" class="form-control" id="password" name="password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('password')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="remember" name="remember">
