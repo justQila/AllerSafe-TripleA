@@ -1,10 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from functools import wraps
 from database import *
+from dotenv import load_dotenv
+import os
 import secrets
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'CatLuvTun123'
+app.config['SECRET_KEY'] = 'FishyyFishhiodhwqhdqid190e71eu'
 
 # ---------------------- LOGIN REQUIRED DECORATOR ----------------------
 def login_required(f):
