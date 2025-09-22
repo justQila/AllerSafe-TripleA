@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}User Login{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <i class="fas fa-user"></i>
+            <h2>USER LOGIN</h2>
+            <p class="text-muted">Temporary Portal - For demonstration only</p>
+        </div>
+        <div class="auth-body">
+            <!-- Simple form that doesn't actually submit anywhere -->
+            <form>
+                <div class="mb-3">
+                    <label for="user-username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="user-username" placeholder="Enter username">
+                </div>
+                <div class="mb-3">
+                    <label for="user-password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="user-password" placeholder="Enter password">
+                </div>
+                <button type="button" class="btn btn-success w-100" onclick="simulateLogin()">
+                    Login as User
+                </button>
+            </form>
+        </div>
+        <div class="auth-footer">
+            <a href="{{ url_for('login') }}">← Back to Admin Login</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function simulateLogin() {
+    // Just show an alert since this is temporary
+    alert("This is the temporary user login portal. The actual authentication backend would be connected here by the user management team.");
+    
+    // Optional: Redirect back to admin login or somewhere else
+    // window.location.href = "{{ url_for('login') }}";
+}
+</script>
+{% endblock %}
