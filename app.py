@@ -56,7 +56,7 @@ def register():
             return redirect(url_for("register"))
     return render_template("register.html")
 
-@app.route("/AllerSafe/login", methods=["GET", "POST"])
+@app.route("/AllerSafe/login", methods=["GET", "POST"], endpoint="login")
 def login_user():
     if request.method == "POST":
         username = request.form["username"]
@@ -114,7 +114,7 @@ def forgot_password_user():
             return render_template("reset_password.html", email=email)
         else:
             return "Email not found! <a href='/AllerSafe/forgot_password'>Try again</a>"
-    return render_template("forgot_password.html")
+    return render_template("forgot_password_user.html")
 
 @app.route("/AllerSafe/reset_password", methods=["POST"])
 def reset_password_user():
@@ -131,6 +131,11 @@ def reset_password_user():
     conn.close()
     return redirect(url_for("login_user"))
 
+
+
+
+
+
 # =========================
 # ADMIN SYSTEM (Mastura)
 # =========================
@@ -143,7 +148,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'], endpoint="login_admin")
 def login_admin():
     if 'admin_id' in session:
         return redirect(url_for('dashboard'))
@@ -167,7 +172,7 @@ def login_admin():
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password', 'error')
-    return render_template('login.html')
+    return render_template('login_admin.html')
 
 @app.route('/logout')
 @login_required
