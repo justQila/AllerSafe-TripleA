@@ -80,6 +80,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_id INTEGER,
+                user_id INTEGER,
                 action TEXT NOT NULL,
                 target_type TEXT,
                 target_id INTEGER,
@@ -284,7 +285,6 @@ def get_admin_by_id(admin_id):
     conn.close()
     return dict(admin) if admin else None
 
-# FIXED: Improved seed_admins function with proper error handling
 def seed_admins():
     conn = None
     try:
@@ -324,7 +324,6 @@ def seed_admins():
 
 # ---------------------- PASSWORD RESET ----------------------
 
-# FIXED: Correct password reset functions
 def set_reset_token(email, token):
     admin = get_admin_by_email(email)
     if not admin:
@@ -394,16 +393,33 @@ def send_reset_email(to_email, reset_url):
 # ---------------------- AUDIT LOG ----------------------
 
 def add_audit_log(admin_id=None, user_id=None, action=None, entity_type=None, entity_id=None, details=None, ip_address=None):
-    """Add audit log entry for both admin and user actions"""
-    user_type = 'admin' if admin_id else 'user' if user_id else 'system'
-    
+    """Add audit log entry - handles both old and new schema"""
     conn = sqlite3.connect(DB_NAME)
-    conn.execute('''
-        INSERT INTO audit_log (admin_id, user_id, user_type, action, target_type, target_id, details, ip_address)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (admin_id, user_id, user_type, action, entity_type, entity_id, details, ip_address))
-    conn.commit()
-    conn.close()
+    
+    try:
+        # Check if new columns exist
+        cursor = conn.execute("PRAGMA table_info(audit_log)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'user_id' in columns and 'user_type' in columns:
+            user_type = 'admin' if admin_id else 'user' if user_id else 'system'
+            conn.execute('''
+                INSERT INTO audit_log (admin_id, user_id, user_type, action, target_type, target_id, details, ip_address)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (admin_id, user_id, user_type, action, entity_type, entity_id, details, ip_address))
+        else:
+            conn.execute('''
+                INSERT INTO audit_log (admin_id, action, target_type, target_id, details, ip_address)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (admin_id, action, entity_type, entity_id, details, ip_address))
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding audit log: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
 
 def add_user_audit_log(user_id, action, entity_type=None, entity_id=None, details=None, ip_address=None):
     """Convenience function to log user actions"""
@@ -424,24 +440,32 @@ def upgrade_audit_log_table():
     """Upgrade audit_log table to support both admin and user actions"""
     conn = sqlite3.connect(DB_NAME)
     try:
-        # Check if user_id column exists
+        # Check if columns already exist
         cursor = conn.execute("PRAGMA table_info(audit_log)")
         columns = [column[1] for column in cursor.fetchall()]
         
+        changes_made = []
+        
         if 'user_id' not in columns:
             conn.execute('ALTER TABLE audit_log ADD COLUMN user_id INTEGER')
-            conn.commit()
-            print("Added user_id column to audit_log table")
+            changes_made.append('user_id')
         
         if 'user_type' not in columns:
             conn.execute('ALTER TABLE audit_log ADD COLUMN user_type TEXT DEFAULT "admin"')
+            changes_made.append('user_type')
+            
+        if changes_made:
             conn.commit()
-            print("Added user_type column to audit_log table")
+            print(f"Added columns to audit_log: {', '.join(changes_made)}")
+        else:
+            print("audit_log table is already up to date")
             
     except Exception as e:
-        print(f"Error upgrading table: {e}")
+        print(f"Error upgrading audit_log table: {e}")
+        conn.rollback()
     finally:
         conn.close()
+            
 # ---------------------- USERS ----------------------
 
 def get_all_users():
