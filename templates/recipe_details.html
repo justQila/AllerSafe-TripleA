@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ recipe.name }}</title>
+    <style>
+        body{
+            font-family: Arial, sans-serif;
+            background: #f8f8f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        h2{
+            margin-top: 25px;
+            color: #444;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        p{
+            font-size: 16px;
+            color: #555;
+        }
+
+        ul{
+            list-style-type: disc;
+            padding-left: 40px;
+        }
+
+        li{
+            margin: 5px 0;
+            font-size: 15px;
+        }
+
+        pre{
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-size: 15px;
+            line-height: 1.5;
+            border-radius: 5px;
+        }
+
+        a{
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            background: #1a3a17;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: 0.3s;
+        }
+
+        a:hover {
+            background: #345d31;
+        }
+
+        .recipe-photo {
+            display: block;
+            margin: 0 auto 20px auto;
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    {% if recipe.photo %}
+        <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" alt="{{ recipe.name }}" class="recipe-photo">
+    {% endif %}
+    
+    <h1>{{ recipe.name }}</h1>
+    <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
+    <p><strong>Rating:</strong> {{ recipe.rating }}</p>
+
+    <h2>Ingredients</h2>
+    <ul>
+        {% for ingredient in recipe.ingredients %}
+            <li>{{ ingredient.measurement }} {{ ingredient.name }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Instructions</h2>
+    <pre>{{ recipe.instruction }}</pre>
+
+    <p><a href="{{ url_for('home') }}">Back to Recipes</a></p>
+</body>
+</html>

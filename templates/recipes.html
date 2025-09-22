@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AllerSafe Recipes</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f8f8f8;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  /* Center filter button */
+  #filterBtn {
+    background-color: #b23a2e;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px 30px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    margin-bottom: 30px;
+  }
+  #filterBtn:hover {
+    background-color: #8e2f24;
+    transform: scale(1.05);
+  }
+
+  /* Horizontal recipe list */
+  .recipe-list {
+    display: flex;
+    justify-content: center; 
+    align-items: flex-start; 
+    gap: 20px; 
+    flex-wrap: nowrap; 
+    overflow-x: auto; 
+    padding-bottom: 20px;
+    width: 100%;
+  }
+
+  .recipe {
+    background: #fff;
+    padding: 15px;
+    border-radius: 10px;
+    width: 250px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    text-align: center;
+    flex-shrink: 0; 
+  }
+
+  .recipe h2 { margin: 10px 0 5px 0; font-size: 18px; }
+  .recipe p { margin: 5px 0; font-size: 14px; color: #555; }
+
+  .recipe-photo {
+    display: block;
+    margin: 0 auto 10px auto;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+
+  /* Add Recipe Button */
+  .add-btn{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: #b23a2e;
+    color: white;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .add-btn:hover{
+    background-color: #4e100a;
+  }
+</style>
+</head>
+<body>
+
+<h1>AllerSafe Recipes</h1>
+
+<!-- Filter button -->
+<button id="filterBtn">FILTERS</button>
+
+<!-- Recipe List -->
+<div class="recipe-list">
+  {% if recipes %}
+    {% for recipe in recipes %}
+      <div class="recipe">
+        {% if recipe.photo %}
+          <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" 
+               alt="{{ recipe.name }}" class="recipe-photo">
+        {% endif %}
+        <h2>{{ recipe.name }}</h2>
+        <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
+        <p><strong>Rating:</strong> ⭐ {{ recipe.rating }}</p>
+        <a href="/recipe/{{ recipe.id }}">View full recipe</a>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>No recipes available 😢</p>
+  {% endif %}
+</div>
+
+<!-- Add Recipe Button -->
+<a href="{{ url_for('add_recipe') }}">
+  <button class="add-btn">➕ Add Recipe</button>
+</a>
+
+</body>
+</html>
