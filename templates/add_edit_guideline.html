@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if guideline else 'Add' }} Guideline{% endblock %}
+
+{% block content %}
+<h2>{{ 'Edit' if guideline else 'Add New' }} Guideline</h2>
+
+<form method="POST">
+    <div class="mb-3">
+        <label>Title</label>
+        <input type="text" name="title" class="form-control"
+               value="{{ guideline.title if guideline else '' }}" required>
+    </div>
+    <div class="mb-3">
+        <label>Content</label>
+        <textarea name="content" class="form-control" required>{{ guideline.content if guideline else '' }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label>Category</label>
+        <input type="text" name="category" class="form-control"
+               value="{{ guideline.category if guideline else '' }}" required>
+    </div>
+    <div class="mb-3">
+        <label>Severity</label>
+        <select name="severity" class="form-select">
+            <option value="low" {% if guideline and guideline.severity == 'low' %}selected{% endif %}>Low</option>
+            <option value="medium" {% if guideline and guideline.severity == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="high" {% if guideline and guideline.severity == 'high' %}selected{% endif %}>High</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">
+        {{ 'Update' if guideline else 'Create' }}
+    </button>
+</form>
+{% endblock %}

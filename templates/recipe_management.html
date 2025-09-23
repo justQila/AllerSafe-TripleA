@@ -58,6 +58,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Title</th>
+                        <th>Author</th>
                         <th>Category</th>
                         <th>Allergens</th>
                         <th>Status</th>
@@ -70,21 +71,31 @@
                     <tr>
                         <td>{{ recipe.id }}</td>
                         <td>{{ recipe.title }}</td>
+                        <td>
+                            {% if recipe.author_name %}
+                                {{ recipe.author_name }}
+                                {% if recipe.author_username %}
+                                    <br><small class="text-muted">@{{ recipe.author_username }}</small>
+                                {% endif %}
+                            {% elif recipe.author_username %}
+                                {{ recipe.author_username }}
+                            {% else %}
+                                <span class="text-muted">Unknown Author</span>
+                                {% endif %}
+                        </td>
                         <td>{{ recipe.category }}</td>
-                       <td>
-                          <td>
-                         {% set recipe_allergies = recipe_allergies_map[recipe.id] %}
-                          {% if recipe_allergies %}
-                           {% for allergy in recipe_allergies %}
-                           <span class="badge bg-warning text-dark me-1" title="{{ allergy.notes }}">
-                              {{ allergy.name }}
-                               </span>
+                        <td>
+                            {% set recipe_allergies = recipe_allergies_map[recipe.id] %}
+                            {% if recipe_allergies %}
+                                {% for allergy in recipe_allergies %}
+                                <span class="badge bg-warning text-dark me-1" title="{{ allergy.notes }}">
+                                    {{ allergy.name }}
+                                </span>
                                 {% endfor %}
-                               {% else %}
-                              <span class="text-muted">None</span>
-                              {% endif %}
-                         </td>
-    
+                            {% else %}
+                                <span class="text-muted">None</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <span class="badge {% if recipe.status == 'active' %}bg-success{% else %}bg-danger{% endif %} status-badge">
                                 {{ recipe.status }}
@@ -114,7 +125,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center">No recipes found</td>
+                        <td colspan="8" class="text-center">No recipes found</td>
                     </tr>
                     {% endfor %}
                 </tbody>

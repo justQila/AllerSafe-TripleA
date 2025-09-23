@@ -132,17 +132,17 @@
     <div class="navbar">
         <div class="links">
             <a href="#"><i class="fas fa-filter"></i> Filters</a>
-            <a href="{{ url_for('login') }}"><i class="fas fa-user"></i> Login</a>
+            <a href="{{ url_for('login_user') }}"><i class="fas fa-user"></i> Login</a>
             <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
             <!-- ADMIN LOGIN BUTTON -->
-            <a href="{{ url_for('login_admin') }}"><i class="fas fa-user-shield"></i> Admin Login</a>
+            <a href="{{ url_for('Admin_login') }}"><i class="fas fa-user-shield"></i> Admin Login</a>
         </div>
     </div>
 
     <!-- FOOD CARDS -->
     <div class="cards">
         <div class="card">
-            <img src="{{ url_for('static', filename='image/quinoa.jpg') }}" alt="Salad">
+            <img src="{{ url_for('static', filename='uploads/DelightfulQuinoa.jpeg') }}" alt="Salad">
             <div class="rating">4.9 ⭐️⭐️⭐️⭐️</div>
             <p>Quinoa and Roasted Vegie Salad</p>
         </div>
