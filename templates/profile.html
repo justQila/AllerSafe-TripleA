@@ -22,20 +22,20 @@
             font-family: 'Arial', sans-serif;
             color: #c96f4a; /* sama dengan title user_main.html */
         }
-        .user-info, .add-recipe, .recipe-card {
+        .user-info, .recipe-card {
             background: #fff;
             padding: 20px;
             border-radius: 20px; /* ikut user_main.html */
             box-shadow: 0 5px 15px rgba(0,0,0,0.15);
             margin-bottom: 30px;
         }
-        .user-info form, .add-recipe form {
+        .user-info form {
             display: flex;
             gap: 10px;
             margin-top: 10px;
             flex-wrap: wrap;
         }
-        input[type="text"], textarea {
+        input[type="text"] {
             flex: 1;
             padding: 10px;
             border-radius: 25px; /* konsisten dengan buttons */
@@ -54,14 +54,7 @@
             color: white;
         }
         .update-btn:hover {
-            background: #388E3C;
-        }
-        .add-btn {
             background: #c96f4a;
-            color: white;
-        }
-        .add-btn:hover {
-            background: #a55533;
         }
         .recipes {
             display: grid;
@@ -76,10 +69,37 @@
             margin: 0;
             color: #555;
         }
+        .no-recipes {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            background: #fff;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+        }
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            margin-bottom: 20px;
+            display: inline-block;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+        .back-btn:hover {
+            background: #D2691E;
+            text-decoration: none;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Back to Home Button -->
+        <a href="{{ url_for('user_main') }}" class="back-btn">← Back to Home</a>
+        
         <h1>My Profile</h1>
 
         <!-- User Info -->
@@ -91,27 +111,22 @@
             </form>
         </div>
 
-        <!-- Recipe List (placeholder) -->
-        <h2>My Recipes</h2>
+        <!-- Favourite Recipes List -->
+        <h2>My Favourite Recipes</h2>
         <div class="recipes">
-            <div class="recipe-card">
-                <h3>Sample Recipe 1</h3>
-                <p>This is a description of the recipe.</p>
-            </div>
-            <div class="recipe-card">
-                <h3>Sample Recipe 2</h3>
-                <p>This is a description of the recipe.</p>
-            </div>
-        </div>
-
-        <!-- Add Recipe Form (placeholder) -->
-        <div class="add-recipe">
-            <h2>Add Recipe</h2>
-            <form>
-                <input type="text" placeholder="Recipe title">
-                <textarea placeholder="Description"></textarea>
-                <button type="button" class="add-btn">Add Recipe</button>
-            </form>
+            {% if favourite_recipes %}
+                {% for recipe in favourite_recipes %}
+                <div class="recipe-card">
+                    <h3>{{ recipe.title }}</h3>
+                    <p>{{ recipe.description }}</p>
+                    <p><small>By: {{ recipe.author }}</small></p>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-recipes">
+                    <p>You haven't added any favourite recipes yet.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 </body>

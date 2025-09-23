@@ -223,59 +223,6 @@ def reset_password_user():
     conn.close()
     return redirect(url_for("login"))
 
-# =========================
-# ADMIN SYSTEM (Mastura)
-# =========================
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'admin_id' not in session:
-            flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login_admin'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route('/login', methods=['GET', 'POST'], endpoint="Admin_login")
-def Admin_login():
-    if 'admin_id' in session:
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        remember = True if request.form.get('remember') else False
-        admin = get_admin_by_username(username)
-        if admin and verify_password(password, admin['password_hash']):
-            session['admin_id'] = admin['id']
-            session['admin_username'] = admin['username']
-            if remember:
-                session.permanent = True
-            add_audit_log(admin['id'], 'login', ip_address=request.remote_addr)
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
-    return render_template('Admin_login.html')
-
-@app.route('/logout-admin')
-@login_required
-def logout_admin():
-    add_audit_log(session['admin_id'], 'logout', ip_address=request.remote_addr)
-    session.clear()
-    flash('You have been logged out successfully.', 'info')
-    return redirect(url_for('login_admin'))
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    admin = get_admin_by_id(session['admin_id'])
-    conn = get_db_connection()
-    user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-    recipe_count = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
-    active_users = conn.execute('SELECT COUNT(*) FROM users WHERE status = "active"').fetchone()[0]
-    conn.close()
-    logs = get_audit_logs(limit=5)
-    return render_template('dashboard.html', admin=admin, user_count=user_count,
-                           recipe_count=recipe_count, active_users=active_users, logs=logs)
 
 # =========================
 # RUN APP
