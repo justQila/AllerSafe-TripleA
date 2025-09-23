@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}User Warnings{% endblock %}
+{% block page_title %}User Warnings{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Type</th>
+          <th>Reason</th>
+          <th>Details</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for warning in warnings %}
+        <tr>
+          <td>{{ warning.username }}</td>
+          <td>{{ warning.warning_type }}</td>
+          <td>{{ warning.reason }}</td>
+          <td>{{ warning.details }}</td>
+          <td>
+            <a href="{{ url_for('resolve_warning', warning_id=warning.id) }}" class="btn btn-sm btn-success">Resolve</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center">No warnings found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
