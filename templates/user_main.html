@@ -178,7 +178,7 @@
     <!-- NAVBAR -->
     <div class="navbar">
         <div class="links">
-            <a href="#"><i class="fas fa-filter"></i> Filters</a>
+            <a href="javascript:void(0)" id="filterBtn"><i class="fas fa-filter"></i> Filters</a>
 
             <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
@@ -201,7 +201,6 @@
                 <div class="card">
                     {% if recipe.photo %}
                         <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" alt="{{ recipe.name }}">
-                            alt="{{ recipe.name }}" class="recipe-photo">
                     {% endif %}
                     <h2>{{ recipe.name }}</h2>
                     <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
@@ -223,6 +222,117 @@
     <a href="#" id="faqBtn" title="FAQ">
         <i class="fas fa-question"></i>
     </a>
+
+<!-- FILTER POPUP -->
+<div id="filterPopup" class="popup" style="display:none;">
+    <div class="popup-content">
+        <span class="close" id="closePopup">&times;</span>
+        <h3>FILTER ALLERGIES</h3>
+        <form method="GET" action="/">
+            <label><input type="checkbox" name="allergy" value="gluten"> Gluten</label>
+            <label><input type="checkbox" name="allergy" value="dairy"> Dairy</label>
+            <label><input type="checkbox" name="allergy" value="nut"> Nuts</label>
+            <label><input type="checkbox" name="allergy" value="egg"> Egg</label>
+            <button type="submit">Apply Filter</button>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Styling copy dari kawan kau */
+.popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+}
+.popup-content {
+    background-color: #fffaf4;
+    padding: 25px;
+    margin: 8% auto;
+    width: 350px;
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    text-align: left;
+    position: relative;
+    animation: fadeIn 0.3s ease-in-out;
+}
+.popup-content h3 {
+    margin-bottom: 0;
+    color: #b23a2e;
+    text-align: center;
+    font-size: 22px;
+}
+.close {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #b23a2e;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.close:hover {
+    color: #8e2f24;
+}
+label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #333;
+    cursor: pointer;
+}
+button[type="submit"] {
+    background-color: #b23a2e;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    width: 100%;
+    font-weight: bold;
+    font-size: 16px;
+    margin-top: 15px;
+    transition: all 0.2s ease-in-out;
+}
+button[type="submit"]:hover {
+    background-color: #8e2f24;
+    transform: scale(1.05);
+}
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+</style>
+
+<script>
+const filterBtn = document.getElementById("filterBtn");
+const popup = document.getElementById("filterPopup");
+const closeBtn = document.getElementById("closePopup");
+
+filterBtn.addEventListener("click", () => {
+    popup.style.display ="block";
+});
+closeBtn.addEventListener("click", () => {
+    popup.style.display ="none";
+});
+window.addEventListener("click", (e) => {
+    if (e.target === popup) {
+        popup.style.display = "none";
+    }
+});
+</script>
 
 </body>
 </html>
