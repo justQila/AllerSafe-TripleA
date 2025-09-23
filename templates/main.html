@@ -5,6 +5,7 @@
     <title>AllerSafe Recipe</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
@@ -132,8 +133,9 @@
     <div class="navbar">
         <div class="links">
             <a href="#"><i class="fas fa-filter"></i> Filters</a>
-            <a href="{{ url_for('login_user') }}"><i class="fas fa-user"></i> Login</a>
+            <a href="{{ url_for('login') }}"><i class="fas fa-user"></i> Login</a>
             <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
+
             <!-- ADMIN LOGIN BUTTON -->
             <a href="{{ url_for('Admin_login') }}"><i class="fas fa-user-shield"></i> Admin Login</a>
         </div>

@@ -30,7 +30,7 @@
 
         /* Navbar */
         .navbar {
-            background-color: #7a6b18;
+            background-color: #ecd971;
             display: flex;
             align-items: center;
             padding: 12px 20px;
@@ -40,11 +40,11 @@
             display: flex;
             gap: 15px;
             justify-content: center;
-            flex: 1; /* occupy space tengah */
+            flex: 1;
         }
 
         .navbar .profile-icon {
-            margin-left: auto; /* push ke hujung kanan */
+            margin-left: auto;
         }
 
         .navbar a {
@@ -117,12 +117,30 @@
         .rating {
             margin: 12px 0;
             font-size: 18px;
-            color: #f5a623;
+            color: black;
         }
 
         .card p {
             font-size: 15px;
             color: #444;
+        }
+
+        /* Add Recipe Button */
+        .add-btn{
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background-color: #b23a2e;
+            color: white;
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .add-btn:hover{
+            background-color: #4e100a;
         }
 
         /* Floating FAQ Button */
@@ -151,6 +169,7 @@
     </style>
 </head>
 <body>
+
     <!-- TITLE -->
     <div class="title">
         <h1>AllerSafe Recipe</h1>
@@ -160,7 +179,7 @@
     <div class="navbar">
         <div class="links">
             <a href="#"><i class="fas fa-filter"></i> Filters</a>
-            <a href="#"><i class="fas fa-plus"></i> Add Recipe</a>
+
             <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
         <div class="profile-icon">
@@ -177,30 +196,28 @@
 
     <!-- FOOD CARDS -->
     <div class="cards">
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/quinoa.jpg') }}" alt="Salad">
-            <div class="rating">4.9 ⭐️⭐️⭐️⭐️</div>
-            <p>Quinoa and Roasted Vegie Salad</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/ramen.jpg') }}" alt="Ramen">
-            <div class="rating">5.0 ⭐️⭐️⭐️⭐️⭐️</div>
-            <p>Delicious Ramen Bowl</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/pasta.jpg') }}" alt="nanti letak">
-            <div class="rating">4.5 ⭐️⭐️⭐️⭐️</div>
-            <p>Gluten-Free Pasta With Tomato Basil Sauce</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/pudding.jpg') }}" alt="nanti letak">
-            <div class="rating">5.0 ⭐️⭐️⭐️⭐️⭐️</div>
-            <p>Berry Chia Pudding</p>
-        </div>
+        {% if recipes %}
+            {% for recipe in recipes %}
+                <div class="card">
+                    {% if recipe.photo %}
+                        <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" alt="{{ recipe.name }}">
+                            alt="{{ recipe.name }}" class="recipe-photo">
+                    {% endif %}
+                    <h2>{{ recipe.name }}</h2>
+                    <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
+                    <p><strong>Rating:</strong>⭐ {{ recipe.rating }}</p>
+                    <a href="/recipe/{{ recipe.id }}">View full recipe</a>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No recipes available 😢</p>
+        {% endif %}
     </div>
+
+    <!-- Add Recipe Button -->
+    <a href="{{ url_for('add_recipe') }}">
+        <button class="add-btn">➕ Add Recipe</button>
+    </a>
 
     <!-- FLOATING FAQ BUTTON -->
     <a href="#" id="faqBtn" title="FAQ">

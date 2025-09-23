@@ -133,8 +133,10 @@ def main():
 @app.route("/AllerSafe/user_main")
 def user_main():
     if "user" not in session:
-        return redirect(url_for("login_user"))
-    return render_template("user_main.html", username=session["user"])
+        return redirect(url_for("login"))
+
+    recipes = Recipe.query.all()
+    return render_template("user_main.html", username=session["user"], recipes=recipes)
 
 @app.route("/AllerSafe/register", methods=["GET", "POST"])
 def register():
@@ -156,8 +158,8 @@ def register():
             return redirect(url_for("register"))
     return render_template("register.html")
 
-@app.route("/AllerSafe/login", methods=["GET", "POST"], endpoint="login_user")
-def login_user():
+@app.route("/AllerSafe/login", methods=["GET", "POST"], endpoint="login")
+def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -170,13 +172,13 @@ def login_user():
             return redirect(url_for("user_main"))
         else:
             flash("Invalid username or password!", "error")
-            return redirect(url_for("login_user"))
+            return redirect(url_for("login"))
     return render_template("login.html")
 
 @app.route("/AllerSafe/profile", methods=["GET", "POST"])
 def profile():
     if "user" not in session:
-        return redirect(url_for("login_user"))
+        return redirect(url_for("login"))
     conn = get_db_connection()
     user_data = conn.execute("SELECT * FROM users WHERE username = ?", (session["user"],)).fetchone()
     conn.close()
@@ -191,7 +193,7 @@ def profile():
     return render_template("profile.html", username=session["user"])
 
 @app.route("/AllerSafe/logout")
-def logout_user():
+def logout():
     session.pop("user", None)
     return redirect(url_for("main"))
 
@@ -219,7 +221,7 @@ def reset_password_user():
     conn.execute("UPDATE users SET password = ? WHERE email = ?", (new_password, email))
     conn.commit()
     conn.close()
-    return redirect(url_for("login_user"))
+    return redirect(url_for("login"))
 
 # =========================
 # ADMIN SYSTEM (Mastura)
@@ -233,8 +235,8 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'], endpoint="login_admin")
-def login_admin():
+@app.route('/login', methods=['GET', 'POST'], endpoint="Admin_login")
+def Admin_login():
     if 'admin_id' in session:
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
@@ -252,7 +254,7 @@ def login_admin():
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password', 'error')
-    return render_template('login_admin.html')
+    return render_template('Admin_login.html')
 
 @app.route('/logout-admin')
 @login_required
