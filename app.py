@@ -231,7 +231,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'admin_id' not in session:
             flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login_admin'))
+            return redirect(url_for('Admin_login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -262,7 +262,7 @@ def logout_admin():
     add_audit_log(session['admin_id'], 'logout', ip_address=request.remote_addr)
     session.clear()
     flash('You have been logged out successfully.', 'info')
-    return redirect(url_for('login_admin'))
+    return redirect(url_for('Admin_login'))
 
 @app.route('/dashboard')
 @login_required
