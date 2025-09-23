@@ -17,11 +17,3 @@ python-dotenv==1.0.0
 # Template Engine (included with Flask but listed for clarity)
 Jinja2==3.1.2
 
-# WSGI Server for production (optional)
-gunicorn==21.2.0
-
-# Development Tools (optional - for development only)
-# Uncomment these if needed for development
-# flask-debugtoolbar==0.13.1
-# pytest==7.4.2
-# pytest-flask==1.2.0
