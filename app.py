@@ -223,6 +223,9 @@ def reset_password_user():
     conn.close()
     return redirect(url_for("login"))
 
+# =========================
+# ADMIN SYSTEM (Mastura)
+# =========================
 
 # =========================
 # RUN APP
