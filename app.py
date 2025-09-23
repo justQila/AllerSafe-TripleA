@@ -26,6 +26,55 @@ def login_required(f):
 def home():
     return redirect(url_for('Admin_login'))
 
+@app.route('/Admin-login', methods=['GET', 'POST'])
+def Admin_login():  # Changed from 'login' to 'Admin_login'
+    if 'admin_id' in session:
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        remember = True if request.form.get('remember') else False
+
+        admin = get_admin_by_username(username)
+
+        if admin and verify_password(password, admin['password_hash']):
+            session['admin_id'] = admin['id']
+            session['admin_username'] = admin['username']
+            if remember:
+                session.permanent = True
+            add_audit_log(admin['id'], 'Admin Login', ip_address=request.remote_addr)
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'error')
+
+    return render_template('Admin_login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    add_audit_log(session['admin_id'], 'Admin Logout', ip_address=request.remote_addr)
+    session.clear()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('Admin_login'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    admin = get_admin_by_id(session['admin_id'])
+
+    # Stats
+    with sqlite3.connect(DB_NAME) as conn:
+        conn.row_factory = sqlite3.Row
+        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        recipe_count = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
+        active_users = conn.execute('SELECT COUNT(*) FROM users WHERE status="active"').fetchone()[0]
+
+    logs = get_audit_logs(limit=5)
+    return render_template('dashboard.html', admin=admin, user_count=user_count,
+                           recipe_count=recipe_count, active_users=active_users, logs=logs)
+
 # ---------------------- USER MANAGEMENT ----------------------
 
 @app.route('/user-management')
@@ -481,5 +530,4 @@ def Admin_reset_password(token):
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
     init_db()
-
     app.run(debug=True)
