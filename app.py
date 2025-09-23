@@ -16,7 +16,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'admin_id' not in session:
             flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('Admin_login'))  
+            return redirect(url_for('Admin_login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -27,7 +27,7 @@ def home():
     return redirect(url_for('Admin_login'))
 
 @app.route('/Admin-login', methods=['GET', 'POST'])
-def Admin_login():  # Changed from 'login' to 'Admin_login'
+def Admin_login():
     if 'admin_id' in session:
         return redirect(url_for('dashboard'))
 
@@ -175,6 +175,15 @@ def recipe_management():
                            allergies=allergies, selected_allergy=allergy_filter,
                            exclude_allergy=exclude_allergy, recipe_allergies_map=recipe_allergies_map)
 
+@app.route('/manage-recipe-allergies/<int:recipe_id>')
+@login_required
+def manage_recipe_allergies(recipe_id):
+    """Manage allergies for a specific recipe"""
+    recipe = get_recipe_by_id(recipe_id)
+    if not recipe:
+        flash('Recipe not found.', 'error')
+        return redirect(url_for('recipe_management'))
+    
     all_allergies = get_all_allergies()
     recipe_allergies = get_recipe_allergies(recipe_id)
     recipe_allergy_ids = [a['id'] for a in recipe_allergies]
@@ -197,36 +206,14 @@ def delete_recipe_route(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('recipe_management'))
 
-# ----------------------- ALLERGY MANAGEMENT ----------------------
+# ---------------------- ALLERGY MANAGEMENT ----------------------
+
 @app.route('/allergy-management')
 @login_required
 def allergy_management():
     """Admin manages allergy master data"""
     allergies = get_all_allergies()
     return render_template('allergy_management.html', allergies=allergies)
-
-@app.route('/manage-recipe-allergies/<int:recipe_id>')
-@login_required
-def manage_recipe_allergies(recipe_id):
-    """Manage allergies for a specific recipe"""
-    recipe = get_recipe_by_id(recipe_id)
-    if not recipe:
-        flash('Recipe not found.', 'error')
-        return redirect(url_for('recipe_management'))
-    
-@app.route('/manage-recipe-allergies/<int:recipe_id>')
-@login_required  
-def manage_recipe_allergies(recipe_id):
-    """Admin assigns allergies when approving recipes"""
-    recipe = get_recipe_by_id(recipe_id)
-    all_allergies = get_all_allergies()
-    recipe_allergies = get_recipe_allergies(recipe_id) 
-    recipe_allergy_ids = [a['id'] for a in recipe_allergies]
-    
-    return render_template('manage_recipe_allergies.html', 
-                         recipe=recipe, 
-                         all_allergies=all_allergies,
-                         recipe_allergy_ids=recipe_allergy_ids)
 
 # ---------------------- PENDING RECIPES ----------------------
 
@@ -474,7 +461,7 @@ def change_password():
         admin = get_admin_by_id(session['admin_id'])
         if not admin:
             flash('Admin account not found', 'error')
-            return redirect(url_for('login'))
+            return redirect(url_for('Admin_login'))
         if not verify_password(current_password, admin['password_hash']):
             flash('Current password is incorrect', 'error')
             return redirect(url_for('change_password'))
@@ -490,8 +477,8 @@ def change_password():
 
 # ---------------------- FORGOT PASSWORD ----------------------
 
-@app.route('/Admin-forgot-password', methods=['GET', 'POST'])  
-def forgot_password():
+@app.route('/Admin-forgot-password', methods=['GET', 'POST'])
+def Admin_forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
         admin = get_admin_by_email(email)
@@ -499,7 +486,7 @@ def forgot_password():
         if admin:
             token = secrets.token_urlsafe(32)
             set_reset_token(email, token)
-            reset_url = f"{request.host_url}Admin-reset-password/{token}" 
+            reset_url = f"{request.host_url}Admin-reset-password/{token}"
             
             # Send email via SendGrid
             send_reset_email(admin['email'], reset_url)
@@ -508,24 +495,24 @@ def forgot_password():
         else:
             flash('Email not found in our system.', 'error')
     
-    return render_template('forgot_password.html')
+    return render_template('Admin_forgot_password.html')
 
 @app.route('/Admin-reset-password/<token>', methods=['GET', 'POST'])
-def Admin_reset_password(token):  
+def Admin_reset_password(token):  #
     if not is_token_valid(token):
         flash('Invalid or expired reset token.', 'error')
-        return redirect(url_for('forgot_password'))
+        return redirect(url_for('Admin_forgot_password'))
     if request.method == 'POST':
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         if password != confirm_password:
             flash('Passwords do not match.', 'error')
-            return render_template('Admin_reset_password.html', token=token)  
+            return render_template('Admin_reset_password.html', token=token)
         admin = get_admin_by_token(token)
         update_password(admin['id'], password)
         flash('Password reset successfully. You can now login with your new password.', 'success')
-        return redirect(url_for('Admin_login'))  
-    return render_template('Admin_reset_password.html', token=token) 
+        return redirect(url_for('Admin_login'))
+    return render_template('Admin_reset_password.html', token=token)
 
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
