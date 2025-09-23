@@ -1,12 +1,24 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+# =========================
+# ---------------BACKEND------------------
+# =========================
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_sqlalchemy import SQLAlchemy
+
 from functools import wraps
+from werkzeug.utils import secure_filename
+from PIL import Image
+import sqlite3
+import os
+import secrets
 from database import *
 from dotenv import load_dotenv
 import os
 import secrets
 
-load_dotenv()
-
+# =========================
+# FLASK APP CONFIG
+# =========================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'FishyyFishhiodhwqhdqid190e71eu'
 
@@ -16,7 +28,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'admin_id' not in session:
             flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('Admin_login'))
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -24,10 +36,15 @@ def login_required(f):
 
 @app.route('/')
 def home():
-    return redirect(url_for('Admin_login'))
+    return redirect(url_for('login'))
 
-@app.route('/Admin-login', methods=['GET', 'POST'])
-def Admin_login():
+@app.route('/temp-user-login')
+def temp_user_login():
+    """Temporary user login page for demonstration"""
+    return render_template('temp_user_login.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
     if 'admin_id' in session:
         return redirect(url_for('dashboard'))
 
@@ -49,7 +66,7 @@ def Admin_login():
         else:
             flash('Invalid username or password', 'error')
 
-    return render_template('Admin_login.html')
+    return render_template('login.html')
 
 @app.route('/logout')
 @login_required
@@ -57,7 +74,7 @@ def logout():
     add_audit_log(session['admin_id'], 'Admin Logout', ip_address=request.remote_addr)
     session.clear()
     flash('You have been logged out successfully.', 'info')
-    return redirect(url_for('Admin_login'))
+    return redirect(url_for('login'))
 
 @app.route('/dashboard')
 @login_required
@@ -75,82 +92,24 @@ def dashboard():
     return render_template('dashboard.html', admin=admin, user_count=user_count,
                            recipe_count=recipe_count, active_users=active_users, logs=logs)
 
-# ---------------------- USER MANAGEMENT ----------------------
+# ---------------- MODELS (Amirah) ----------------
+class Recipe(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    allergens = db.Column(db.String(200), nullable=False, default="")
+    instruction = db.Column(db.Text, nullable=False)
+    rating = db.Column(db.Float, default=0.0)
+    photo = db.Column(db.String(200))
+    ingredients = db.relationship('Ingredient', backref='recipe', cascade="all, delete-orphan")
 
-@app.route('/user-management')
-@login_required
-def user_management():
-    users = get_all_users()
-    return render_template('user_management.html', users=users)
+class Ingredient(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    measurement = db.Column(db.String(50))
 
-@app.route('/suspend-user/<int:user_id>')
-@login_required
-def suspend_user(user_id):
-    user = get_user_by_id(user_id)
-    if user:
-        update_user_status(user_id, 'suspended')
-        add_audit_log(session['admin_id'], 'User Suspended', 'user', user_id, 
-                      f"Suspended user: {user['username']}", request.remote_addr)
-        flash(f"User {user['username']} has been suspended.", 'success')
-    else:
-        flash('User not found.', 'error')
-    return redirect(url_for('user_management'))
-
-@app.route('/activate-user/<int:user_id>')
-@login_required
-def activate_user(user_id):
-    user = get_user_by_id(user_id)
-    if user:
-        update_user_status(user_id, 'active')
-        add_audit_log(session['admin_id'], 'User Activated', 'user', user_id, 
-                      f"Activated user: {user['username']}", request.remote_addr)
-        flash(f"User {user['username']} has been activated.", 'success')
-    else:
-        flash('User not found.', 'error')
-    return redirect(url_for('user_management'))
-
-@app.route('/delete-user/<int:user_id>')
-@login_required
-def delete_user_route(user_id):
-    user = get_user_by_id(user_id)
-    if user:
-        delete_user(user_id)
-        add_audit_log(session['admin_id'], 'User Deleted', 'user', user_id, 
-                      f"Deleted user: {user['username']}", request.remote_addr)
-        flash(f"User {user['username']} has been deleted.", 'success')
-    else:
-        flash('User not found.', 'error')
-    return redirect(url_for('user_management'))
-
-# ---------------------- RECIPE MANAGEMENT ACTIONS ----------------------
-
-@app.route('/suspend-recipe/<int:recipe_id>')
-@login_required
-def suspend_recipe(recipe_id):
-    """Suspend a recipe"""
-    recipe = get_recipe_by_id(recipe_id)
-    if recipe:
-        update_recipe_status(recipe_id, 'suspended')
-        add_audit_log(session['admin_id'], 'Recipe Suspended', 'recipe', recipe_id, 
-                      f"Suspended recipe: {recipe['title']}", request.remote_addr)
-        flash(f"Recipe '{recipe['title']}' has been suspended.", 'warning')
-    else:
-        flash('Recipe not found.', 'error')
-    return redirect(url_for('recipe_management'))
-
-@app.route('/activate-recipe/<int:recipe_id>')
-@login_required
-def activate_recipe(recipe_id):
-    """Activate a recipe"""
-    recipe = get_recipe_by_id(recipe_id)
-    if recipe:
-        update_recipe_status(recipe_id, 'active')
-        add_audit_log(session['admin_id'], 'Recipe Activated', 'recipe', recipe_id, 
-                      f"Activated recipe: {recipe['title']}", request.remote_addr)
-        flash(f"Recipe '{recipe['title']}' has been activated.", 'success')
-    else:
-        flash('Recipe not found.', 'error')
-    return redirect(url_for('recipe_management'))
+with app.app_context():
+    db.create_all()
 
 # ---------------------- RECIPE MANAGEMENT ----------------------
 
@@ -206,15 +165,6 @@ def delete_recipe_route(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('recipe_management'))
 
-# ---------------------- ALLERGY MANAGEMENT ----------------------
-
-@app.route('/allergy-management')
-@login_required
-def allergy_management():
-    """Admin manages allergy master data"""
-    allergies = get_all_allergies()
-    return render_template('allergy_management.html', allergies=allergies)
-
 # ---------------------- PENDING RECIPES ----------------------
 
 @app.route('/pending-recipes')
@@ -268,155 +218,141 @@ def reject_recipe(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('pending_recipes'))
 
-@app.route('/view-recipe/<int:recipe_id>')
-@login_required
-def view_recipe(recipe_id):
-    """View recipe details for review"""
-    recipe = get_recipe_by_id(recipe_id)
-    if not recipe:
-        flash('Recipe not found.', 'error')
-        return redirect(url_for('pending_recipes'))
-    
-    # Get author info
-    if recipe.get('author_id'):
-        author = get_user_by_id(recipe['author_id'])
-        recipe['author'] = author if author else {'username': 'Unknown'}
-    else:
-        recipe['author'] = {'username': 'Unknown'}
-    
-    # Get allergies for this recipe
-    allergies = get_recipe_allergies(recipe_id)
-    recipe['allergies'] = allergies
-    
-    return render_template('view_recipe.html', recipe=recipe)
+@app.route('/recipe/<int:recipe_id>')
+def recipe_details(recipe_id):
+    recipe = Recipe.query.get_or_404(recipe_id)
+    return render_template("recipe_details.html", recipe=recipe)
 
-# ---------------------- USER WARNINGS ----------------------
-
-@app.route('/warn-user/<int:user_id>', methods=['GET', 'POST'])
-@login_required
-def warn_user(user_id):
-    user = get_user_by_id(user_id)
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('user_management'))
-
-    guidelines = get_all_guidelines()
+@app.route('/add', methods=['GET', 'POST'])
+def add_recipe():
     if request.method == 'POST':
-        guideline_id = request.form.get('guideline_id')
-        custom_reason = request.form.get('custom_reason')
-        severity = request.form.get('severity', 'warning')
-        if guideline_id or custom_reason:
-            add_user_warning(user_id, session['admin_id'], guideline_id, custom_reason, severity)
-            reason = custom_reason if custom_reason else f"Violated guideline: {get_guideline_by_id(guideline_id)['title']}"
-            add_audit_log(session['admin_id'], 'User Warning Issued', 'user', user_id, 
-                          f"Warned user {user['username']}: {reason}", request.remote_addr)
-            flash(f"User {user['username']} has been warned.", 'success')
-            return redirect(url_for('user_management'))
+        name = request.form['name']
+        allergens = request.form['allergens']
+        instruction = request.form['instruction']
+        rating = float(request.form['rating']) if request.form['rating'] else 0.0
+
+        photo = request.files.get('photo')
+        photo_filename = None
+        if photo and allowed_file(photo.filename):
+            filename = secure_filename(photo.filename)
+            photo_filename = filename
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            photo.save(filepath)
+            img = Image.open(filepath)
+            img.thumbnail((350, 350))
+            img.save(filepath)
+
+        recipe = Recipe(name=name, allergens=allergens, instruction=instruction, rating=rating, photo=photo_filename)
+        db.session.add(recipe)
+        db.session.commit()
+
+        ingredients = request.form['ingredients'].split("\n")
+        for ing in ingredients:
+            if ing.strip():
+                parts = ing.split("-", 1)
+                name = parts[0].strip()
+                measurement = parts[1].strip() if len(parts) > 1 else None
+                db.session.add(Ingredient(recipe_id=recipe.id, name=name, measurement=measurement))
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template("add_recipe.html")
+
+# =========================
+# DATABASE CONNECTION (User - Aqilah)
+# =========================
+def get_db_connection():
+    conn = sqlite3.connect("user.db", timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# =========================
+# USER SYSTEM (Aqilah)
+# =========================
+@app.route("/AllerSafe/")
+def index():
+    return redirect(url_for("main"))
+
+@app.route("/AllerSafe/main")
+def main():
+    return render_template("main.html")
+
+@app.route("/AllerSafe/user_main")
+def user_main():
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    recipes = Recipe.query.all()
+    return render_template("user_main.html", username=session["user"], recipes=recipes)
+
+@app.route("/AllerSafe/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        email = request.form["email"]
+        password = request.form["password"]
+        try:
+            conn = get_db_connection()
+            conn.execute("INSERT INTO users (username, email, password) VALUES (?,?,?)",
+                         (username, email, password))
+            conn.commit()
+            conn.close()
+            session["user"] = username
+            flash("Registration successful! You can now log in", "success")
+            return redirect(url_for("user_main"))
+        except sqlite3.IntegrityError:
+            flash("This username or email is already registered. Please log in instead.", "error")
+            return redirect(url_for("register"))
+    return render_template("register.html")
+
+@app.route("/AllerSafe/login", methods=["GET", "POST"], endpoint="login")
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE username = ? AND password = ?",
+                            (username, password)).fetchone()
+        conn.close()
+        if user:
+            session["user"] = user["username"]
+            return redirect(url_for("user_main"))
         else:
-            flash('Please select a guideline or provide a custom reason.', 'error')
-    return render_template('warn_user.html', user=user, guidelines=guidelines)
+            flash("Invalid username or password!", "error")
+            return redirect(url_for("login"))
+    return render_template("login.html")
 
-@app.route('/user-warnings')
-@login_required
-def user_warnings():
-    """Display user warnings"""
-    warnings = get_all_warnings()
-    
-    # Get user and admin info for each warning
-    for warning in warnings:
-        if warning.get('user_id'):
-            user = get_user_by_id(warning['user_id'])
-            warning['user'] = user if user else {'username': 'Unknown'}
-        
-        if warning.get('admin_id'):
-            admin = get_admin_by_id(warning['admin_id'])
-            warning['admin'] = admin if admin else {'username': 'Unknown'}
-    
-    return render_template('user_warnings.html', warnings=warnings)
+@app.route("/AllerSafe/profile", methods=["GET", "POST"])
+def profile():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    conn = get_db_connection()
+    user_data = conn.execute("SELECT * FROM users WHERE username = ?", (session["user"],)).fetchone()
+    conn.close()
+    if request.method == "POST":
+        new_name = request.form.get("name")
+        if new_name and new_name != session["user"]:
+            conn = get_db_connection()
+            conn.execute("UPDATE users SET username = ? WHERE username = ?", (new_name, session["user"]))
+            conn.commit()
+            conn.close()
+            session["user"] = new_name
+    return render_template("profile.html", username=session["user"])
 
-# ---------------------- GUIDELINES ----------------------
+@app.route("/AllerSafe/logout")
+def logout():
+    session.pop("user", None)
+    return redirect(url_for("main"))
 
-@app.route('/guideline-management')
-@login_required
-def guideline_management():
-    """Display guidelines management"""
-    guidelines = get_all_guidelines()
-    return render_template('guideline_management.html', guidelines=guidelines)
-
-@app.route('/add-edit-guideline', methods=['GET', 'POST'])
-@app.route('/add-edit-guideline/<int:guideline_id>', methods=['GET', 'POST'])
-@login_required
-def add_edit_guideline(guideline_id=None):
-    """Add or edit a guideline"""
-    guideline = None
-    if guideline_id:
-        guideline = get_guideline_by_id(guideline_id)
-        if not guideline:
-            flash('Guideline not found.', 'error')
-            return redirect(url_for('guideline_management'))
-    
-    if request.method == 'POST':
-        title = request.form.get('title')
-        content = request.form.get('content')
-        category = request.form.get('category')
-        severity = request.form.get('severity')
-        
-        if guideline_id:
-            update_guideline(guideline_id, title, content, category, severity)
-            add_audit_log(session['admin_id'], 'Guideline Updated', 'guideline', guideline_id, 
-                          f"Updated guideline: {title}", request.remote_addr)
-            flash('Guideline updated successfully.', 'success')
-        else:
-            new_id = insert_guideline(title, content, category, severity)
-            add_audit_log(session['admin_id'], 'Guideline Created', 'guideline', new_id, 
-                          f"Created guideline: {title}", request.remote_addr)
-            flash('Guideline created successfully.', 'success')
-        
-        return redirect(url_for('guideline_management'))
-    
-    return render_template('add_edit_guideline.html', guideline=guideline)
-
-@app.route('/delete-guideline/<int:guideline_id>')
-@login_required
-def delete_guideline_route(guideline_id):
-    """Delete a guideline"""
-    guideline = get_guideline_by_id(guideline_id)
-    if guideline:
-        delete_guideline(guideline_id)
-        add_audit_log(session['admin_id'], 'Guideline Deleted', 'guideline', guideline_id, 
-                      f"Deleted guideline: {guideline['title']}", request.remote_addr)
-        flash('Guideline deleted successfully.', 'success')
-    else:
-        flash('Guideline not found.', 'error')
-    return redirect(url_for('guideline_management'))
-
-# ---------------------- RECIPE REPORTS ----------------------
-
-@app.route('/recipe-reports')
-@login_required
-def recipe_reports():
-    """Display recipe reports"""
-    reports = get_all_recipe_reports()
-    return render_template('recipe_reports.html', reports=reports)
-
-# ---------------------- AUDIT LOG ----------------------
-
-@app.route('/audit-log')
-@login_required
-def audit_log():
-    """Display complete audit log - both admin and user actions"""
-    logs = get_audit_logs(limit=200)  # Increased limit for better overview
-    
-    # Get admin/user info for each log entry
-    for log in logs:
-        if log.get('admin_id'):
-            admin = get_admin_by_id(log['admin_id'])
-            log['admin'] = admin if admin else {'username': 'Unknown Admin'}
-            log['user'] = None
-        elif log.get('user_id'):
-            user = get_user_by_id(log['user_id'])
-            log['user'] = user if user else {'username': 'Unknown User'}
-            log['admin'] = None
+@app.route("/AllerSafe/forgot_password", methods=["GET", "POST"])
+def forgot_password_user():
+    if request.method == "POST":
+        email = request.form["email"]
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        conn.close()
+        if user:
+            return render_template("reset_password.html", email=email)
         else:
             log['admin'] = None
             log['user'] = None
@@ -461,7 +397,7 @@ def change_password():
         admin = get_admin_by_id(session['admin_id'])
         if not admin:
             flash('Admin account not found', 'error')
-            return redirect(url_for('Admin_login'))
+            return redirect(url_for('login'))
         if not verify_password(current_password, admin['password_hash']):
             flash('Current password is incorrect', 'error')
             return redirect(url_for('change_password'))
@@ -477,8 +413,8 @@ def change_password():
 
 # ---------------------- FORGOT PASSWORD ----------------------
 
-@app.route('/Admin-forgot-password', methods=['GET', 'POST'])
-def Admin_forgot_password():
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
         admin = get_admin_by_email(email)
@@ -486,7 +422,7 @@ def Admin_forgot_password():
         if admin:
             token = secrets.token_urlsafe(32)
             set_reset_token(email, token)
-            reset_url = f"{request.host_url}Admin-reset-password/{token}"
+            reset_url = f"{request.host_url}reset-password/{token}"
             
             # Send email via SendGrid
             send_reset_email(admin['email'], reset_url)
@@ -495,26 +431,26 @@ def Admin_forgot_password():
         else:
             flash('Email not found in our system.', 'error')
     
-    return render_template('Admin_forgot_password.html')
+    return render_template('forgot_password.html')
 
-@app.route('/Admin-reset-password/<token>', methods=['GET', 'POST'])
-def Admin_reset_password(token):  #
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
     if not is_token_valid(token):
         flash('Invalid or expired reset token.', 'error')
-        return redirect(url_for('Admin_forgot_password'))
+        return redirect(url_for('forgot_password'))
     if request.method == 'POST':
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         if password != confirm_password:
             flash('Passwords do not match.', 'error')
-            return render_template('Admin_reset_password.html', token=token)
+            return render_template('reset_password.html', token=token)
         admin = get_admin_by_token(token)
         update_password(admin['id'], password)
         flash('Password reset successfully. You can now login with your new password.', 'success')
-        return redirect(url_for('Admin_login'))
-    return render_template('Admin_reset_password.html', token=token)
+        return redirect(url_for('login'))
+    return render_template('reset_password.html', token=token)
 
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
-    init_db()
+    # init_db()  # from database.py / jgn panggil sebab recipe.db amirah
     app.run(debug=True)
