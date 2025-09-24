@@ -346,7 +346,7 @@ def forgot_password_user():
         user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         conn.close()
         if user:
-            return render_template("reset_password.html", email=email)
+            return render_template("reset_password_user.html", email=email)
         else:
             flash("Email not found!", "error")
     return render_template('forgot_password_user.html')
