@@ -13,8 +13,6 @@ import os
 import secrets
 from database import *
 from dotenv import load_dotenv
-import os
-import secrets
 
 # =========================
 # FLASK APP CONFIG
@@ -22,7 +20,12 @@ import secrets
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'FishyyFishhiodhwqhdqid190e71eu'
 
-# ---------------------- LOGIN REQUIRED DECORATOR ----------------------
+# SQLAlchemy untuk Amirah punya Recipe (pakai recipe.db) 
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipe.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# ---------------------- LOGIN REQUIRED DECORAT OR ----------------------
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -305,8 +308,8 @@ def register():
             return redirect(url_for("register"))
     return render_template("register.html")
 
-@app.route("/AllerSafe/login", methods=["GET", "POST"], endpoint="login")
-def login():
+@app.route("/AllerSafe/login", methods=["GET", "POST"])
+def login_user():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -340,7 +343,7 @@ def profile():
     return render_template("profile.html", username=session["user"])
 
 @app.route("/AllerSafe/logout")
-def logout():
+def logout_usert():
     session.pop("user", None)
     return redirect(url_for("main"))
 
