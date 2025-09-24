@@ -229,6 +229,14 @@ def reject_recipe(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('pending_recipes'))
 
+    # =========================
+# DATABASE CONNECTION (User - Aqilah)
+# =========================
+def get_db_connection():
+    conn = sqlite3.connect("user.db", timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 # =========================
 # USER SYSTEM (Aqilah)
 # =========================
@@ -322,6 +330,26 @@ def profile():
             conn.close()
             session["user"] = new_name
     return render_template("profile.html", username=session["user"])
+
+    #---------------------------------------LOG OUT USER -------------------------------------------
+@app.route("/AllerSafe/logout")
+def logout_user():
+    session.pop("user", None)
+    return redirect(url_for("main"))
+
+#---------------------------------------FORGOT PASSWORD USER------------------------------------
+@app.route("/AllerSafe/forgot_password", methods=["GET", "POST"])
+def forgot_password_user():
+    if request.method == "POST":
+        email = request.form["email"]
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        conn.close()
+        if user:
+            return render_template("reset_password.html", email=email)
+        else:
+            flash("Email not found!", "error")
+    return render_template('forgot_password_user.html')
 
 @app.route('/upgrade-db')
 @login_required
