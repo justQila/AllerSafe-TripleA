@@ -19,13 +19,26 @@ from dotenv import load_dotenv
 # =========================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'FishyyFishhiodhwqhdqid190e71eu'
-
-# SQLAlchemy untuk Amirah punya Recipe (pakai recipe.db) 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipe.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
+# Init database
 db = SQLAlchemy(app)
 
-# ---------------------- LOGIN REQUIRED DECORAT OR ----------------------
+# initialize the admin database when the app starts
+with app.app_context():
+    init_db()
+    db.create_all()
+
+# =========================
+# UTILITIES
+# =========================
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# ---------------------- LOGIN REQUIRED DECORATOR ----------------------
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -35,8 +48,9 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# ---------------------- ROUTES ----------------------
-
+# =========================
+# ADMIN ROUTES
+# =========================
 @app.route('/')
 def home():
     return redirect(url_for('login'))
@@ -69,7 +83,7 @@ def login():
         else:
             flash('Invalid username or password', 'error')
 
-    return render_template('login.html')
+    return render_template('Admin_login.html')
 
 @app.route('/logout')
 @login_required
@@ -95,7 +109,9 @@ def dashboard():
     return render_template('dashboard.html', admin=admin, user_count=user_count,
                            recipe_count=recipe_count, active_users=active_users, logs=logs)
 
-# ---------------- MODELS (Amirah) ----------------
+# =========================
+# MODELS (Amirah)
+# =========================
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -114,8 +130,9 @@ class Ingredient(db.Model):
 with app.app_context():
     db.create_all()
 
-# ---------------------- RECIPE MANAGEMENT ----------------------
-
+# =========================
+# RECIPE MANAGEMENT ROUTES
+# =========================
 @app.route('/recipe-management')
 @login_required
 def recipe_management():
@@ -140,7 +157,6 @@ def recipe_management():
 @app.route('/manage-recipe-allergies/<int:recipe_id>')
 @login_required
 def manage_recipe_allergies(recipe_id):
-    """Manage allergies for a specific recipe"""
     recipe = get_recipe_by_id(recipe_id)
     if not recipe:
         flash('Recipe not found.', 'error')
@@ -168,26 +184,20 @@ def delete_recipe_route(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('recipe_management'))
 
-# ---------------------- PENDING RECIPES ----------------------
-
+# =========================
+# PENDING RECIPES ROUTES
+# =========================
 @app.route('/pending-recipes')
 @login_required
 def pending_recipes():
-    """Display recipes pending approval"""
     recipes = get_pending_recipes()
-    
-    # Get author information for each recipe
     for recipe in recipes:
         if recipe.get('author_id'):
             author = get_user_by_id(recipe['author_id'])
             recipe['author'] = author if author else {'username': 'Unknown'}
         else:
             recipe['author'] = {'username': 'Unknown'}
-        
-        # Add category mock data since your template expects it
         recipe['category'] = {'name': recipe.get('category', 'Uncategorized')}
-        
-        # Mock ingredients for template
         ingredients = recipe.get('ingredients', '')
         recipe['ingredients'] = ingredients.split(',') if ingredients else []
     
@@ -196,7 +206,6 @@ def pending_recipes():
 @app.route('/approve-recipe/<int:recipe_id>')
 @login_required
 def approve_recipe(recipe_id):
-    """Approve a pending recipe"""
     recipe = get_recipe_by_id(recipe_id)
     if recipe:
         update_recipe_status(recipe_id, 'active')
@@ -210,7 +219,6 @@ def approve_recipe(recipe_id):
 @app.route('/reject-recipe/<int:recipe_id>')
 @login_required  
 def reject_recipe(recipe_id):
-    """Reject a pending recipe"""
     recipe = get_recipe_by_id(recipe_id)
     if recipe:
         update_recipe_status(recipe_id, 'rejected')
@@ -221,54 +229,6 @@ def reject_recipe(recipe_id):
         flash('Recipe not found.', 'error')
     return redirect(url_for('pending_recipes'))
 
-@app.route('/recipe/<int:recipe_id>')
-def recipe_details(recipe_id):
-    recipe = Recipe.query.get_or_404(recipe_id)
-    return render_template("recipe_details.html", recipe=recipe)
-
-@app.route('/add', methods=['GET', 'POST'])
-def add_recipe():
-    if request.method == 'POST':
-        name = request.form['name']
-        allergens = request.form['allergens']
-        instruction = request.form['instruction']
-        rating = float(request.form['rating']) if request.form['rating'] else 0.0
-
-        photo = request.files.get('photo')
-        photo_filename = None
-        if photo and allowed_file(photo.filename):
-            filename = secure_filename(photo.filename)
-            photo_filename = filename
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            photo.save(filepath)
-            img = Image.open(filepath)
-            img.thumbnail((350, 350))
-            img.save(filepath)
-
-        recipe = Recipe(name=name, allergens=allergens, instruction=instruction, rating=rating, photo=photo_filename)
-        db.session.add(recipe)
-        db.session.commit()
-
-        ingredients = request.form['ingredients'].split("\n")
-        for ing in ingredients:
-            if ing.strip():
-                parts = ing.split("-", 1)
-                name = parts[0].strip()
-                measurement = parts[1].strip() if len(parts) > 1 else None
-                db.session.add(Ingredient(recipe_id=recipe.id, name=name, measurement=measurement))
-        db.session.commit()
-        return redirect(url_for('home'))
-    return render_template("add_recipe.html")
-
-# =========================
-# DATABASE CONNECTION (User - Aqilah)
-# =========================
-def get_db_connection():
-    conn = sqlite3.connect("user.db", timeout=10)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 # =========================
 # USER SYSTEM (Aqilah)
 # =========================
@@ -278,16 +238,37 @@ def index():
 
 @app.route("/AllerSafe/main")
 def main():
-    return render_template("main.html")
+    selected_allergens = request.args.getlist("allergy")
+    conn = sqlite3.connect("recipe.db")
+    conn.row_factory = sqlite3.Row
+
+    if selected_allergens:
+        placeholders = " AND ".join(["allergens NOT LIKE ?"] * len(selected_allergens))
+        params = [f"%{a}%" for a in selected_allergens]
+        query = f"SELECT id, name, allergens, instruction, rating, photo FROM recipe WHERE {placeholders}"
+        recipes = conn.execute(query, params).fetchall()
+    else:
+        recipes = conn.execute("SELECT id, name, allergens, instruction, rating, photo FROM recipe").fetchall()
+
+    conn.close()
+    return render_template("main.html", recipes=recipes)
 
 @app.route("/AllerSafe/user_main")
 def user_main():
     if "user" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("login_user"))
 
-    recipes = Recipe.query.all()
+    selected_allergens = request.args.getlist("allergy")
+    query = Recipe.query
+    for allergen in selected_allergens:
+        query = query.filter(~Recipe.allergens.like(f"%{allergen}%"))
+
+    recipes = query.all()  
     return render_template("user_main.html", username=session["user"], recipes=recipes)
 
+# =========================
+# USER SYSTEM AQILAH 
+# =========================
 @app.route("/AllerSafe/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -295,7 +276,7 @@ def register():
         email = request.form["email"]
         password = request.form["password"]
         try:
-            conn = get_db_connection()
+            conn = sqlite3.connect("user.db", timeout=10)
             conn.execute("INSERT INTO users (username, email, password) VALUES (?,?,?)",
                          (username, email, password))
             conn.commit()
@@ -313,7 +294,7 @@ def login_user():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-        conn = get_db_connection()
+        conn = sqlite3.connect("user.db", timeout=10)
         user = conn.execute("SELECT * FROM users WHERE username = ? AND password = ?",
                             (username, password)).fetchone()
         conn.close()
@@ -322,45 +303,25 @@ def login_user():
             return redirect(url_for("user_main"))
         else:
             flash("Invalid username or password!", "error")
-            return redirect(url_for("login"))
-    return render_template("login.html")
+            return redirect(url_for("login_user"))
+    return render_template("login_user.html")
 
 @app.route("/AllerSafe/profile", methods=["GET", "POST"])
 def profile():
     if "user" not in session:
-        return redirect(url_for("login"))
-    conn = get_db_connection()
+        return redirect(url_for("login_user"))
+    conn = sqlite3.connect("user.db", timeout=10)
     user_data = conn.execute("SELECT * FROM users WHERE username = ?", (session["user"],)).fetchone()
     conn.close()
     if request.method == "POST":
         new_name = request.form.get("name")
         if new_name and new_name != session["user"]:
-            conn = get_db_connection()
+            conn = sqlite3.connect("user.db", timeout=10)
             conn.execute("UPDATE users SET username = ? WHERE username = ?", (new_name, session["user"]))
             conn.commit()
             conn.close()
             session["user"] = new_name
     return render_template("profile.html", username=session["user"])
-
-@app.route("/AllerSafe/logout")
-def logout_usert():
-    session.pop("user", None)
-    return redirect(url_for("main"))
-
-@app.route("/AllerSafe/forgot_password", methods=["GET", "POST"])
-def forgot_password_user():
-    if request.method == "POST":
-        email = request.form["email"]
-        conn = get_db_connection()
-        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        conn.close()
-        if user:
-            return render_template("reset_password.html", email=email)
-        else:
-            log['admin'] = None
-            log['user'] = None
-    
-    return render_template('audit_log.html', logs=logs)
 
 @app.route('/upgrade-db')
 @login_required
@@ -453,7 +414,76 @@ def reset_password(token):
         return redirect(url_for('login'))
     return render_template('reset_password.html', token=token)
 
+
+# ----------------AUDIT LOG ---------------------
+@app.route('/audit-log')
+@login_required
+def audit_log():
+    logs = get_audit_logs()
+    
+    # Enrich logs with admin/user info
+    for log in logs:
+        if log.get('admin_id'):
+            admin = get_admin_by_id(log['admin_id'])
+            log['admin'] = admin if admin else None
+        else:
+            log['admin'] = None
+        
+        if log.get('user_id'):
+            user = get_user_by_id(log['user_id'])
+            log['user'] = user if user else None
+        else:
+            log['user'] = None
+    
+    return render_template('audit_log.html', logs=logs)
+
+#------------------------------------- USER MANAGEMENT -------------------------
+@app.route('/user-management')
+@login_required
+def user_management():
+    users = get_all_users()
+    return render_template('user_management.html', users=users)
+
+@app.route('/suspend-user/<int:user_id>')
+@login_required
+def suspend_user(user_id):
+    user = get_user_by_id(user_id)
+    if user:
+        update_user_status(user_id, 'suspended')
+        add_audit_log(session['admin_id'], 'User Suspended', 'user', user_id, 
+                      f"Suspended user: {user['username']}", request.remote_addr)
+        flash(f"User '{user['username']}' has been suspended.", 'warning')
+    else:
+        flash('User not found.', 'error')
+    return redirect(url_for('user_management'))
+
+@app.route('/activate-user/<int:user_id>')
+@login_required
+def activate_user(user_id):
+    user = get_user_by_id(user_id)
+    if user:
+        update_user_status(user_id, 'active')
+        add_audit_log(session['admin_id'], 'User Activated', 'user', user_id, 
+                      f"Activated user: {user['username']}", request.remote_addr)
+        flash(f"User '{user['username']}' has been activated.", 'success')
+
+    else:
+        flash('User not found.', 'error')
+    return redirect(url_for('user_management'))
+
+@app.route('/delete-user/<int:user_id>')
+@login_required
+def delete_user_route(user_id):
+    user = get_user_by_id(user_id)
+    if user:
+        delete_user(user_id)
+        add_audit_log(session['admin_id'], 'User Deleted', 'user', user_id, 
+                      f"Deleted user: {user['username']}", request.remote_addr)
+        flash(f"User '{user['username']}' has been deleted.", 'success')
+    else:
+        flash('User not found.', 'error')
+    return redirect(url_for('user_management'))
+
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
-    # init_db()  # from database.py / jgn panggil sebab recipe.db amirah
     app.run(debug=True)

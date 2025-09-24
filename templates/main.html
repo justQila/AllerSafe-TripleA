@@ -65,6 +65,7 @@
             justify-content: center;
             gap: 50px;
             margin: 50px 0;
+            flex-wrap: wrap;
         }
 
         .card {
@@ -97,7 +98,7 @@
             color: #444;
         }
 
-        /* Floating FAQ Button (sementara) */
+        /* Floating FAQ Button */
         #faqBtn {
             position: fixed;
             bottom: 20px;
@@ -115,11 +116,81 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            text-decoration: none; /* supaya link nampak macam button */
+            text-decoration: none;
             transition: background 0.3s;
         }
         #faqBtn:hover {
             background-color: #a55533;
+        }
+
+        /* Popup filter */
+        .popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+        .popup-content {
+            background-color: #fffaf4;
+            padding: 25px;
+            margin: 8% auto;
+            width: 350px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-align: left;
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .popup-content h3 {
+            margin-bottom: 0;
+            color: #b23a2e;
+            text-align: center;
+            font-size: 22px;
+        }
+        .close {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #b23a2e;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .close:hover {
+            color: #8e2f24;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #333;
+            cursor: pointer;
+        }
+        button[type="submit"] {
+            background-color: #b23a2e;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: all 0.2s ease-in-out;
+        }
+        button[type="submit"]:hover {
+            background-color: #8e2f24;
+            transform: scale(1.05);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
     </style>
 </head>
@@ -135,136 +206,48 @@
             <a href="javascript:void(0)" id="filterBtn"><i class="fas fa-filter"></i> Filters</a>
             <a href="{{ url_for('login_user') }}"><i class="fas fa-user"></i> Login</a>
             <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
-
-            <!-- ADMIN LOGIN BUTTON -->
             <a href="{{ url_for('login') }}"><i class="fas fa-user-shield"></i> Admin Login</a>
         </div>
     </div>
 
     <!-- FOOD CARDS -->
     <div class="cards">
-        <div class="card">
-            <img src="{{ url_for('static', filename='uploads/DelightfulQuinoa.jpeg') }}" alt="Salad">
-            <div class="rating">4.9 ⭐️⭐️⭐️⭐️</div>
-            <p>Quinoa and Roasted Vegie Salad</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/ramen.jpg') }}" alt="Ramen">
-            <div class="rating">5.0 ⭐️⭐️⭐️⭐️⭐️</div>
-            <p>Delicious Ramen Bowl</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/pasta.jpg') }}" alt="nanti letak">
-            <div class="rating">4.5 ⭐️⭐️⭐️⭐️</div>
-            <p>Gluten-Free Pasta With Tomato Basil Sauce</p>
-        </div>
-
-        <div class="card">
-            <img src="{{ url_for('static', filename='image/pudding.jpg') }}" alt="nanti letak">
-            <div class="rating">5.0 ⭐️⭐️⭐️⭐️⭐️</div>
-            <p>Berry Chia Pudding</p>
-        </div>
+        {% if recipes %}
+            {% for recipe in recipes %}
+                <div class="card">
+                    {% if recipe.photo %}
+                        <img src="{{ url_for('static', filename='uploads/' ~ recipe.photo) }}" alt="{{ recipe.name }}">
+                    {% endif %}
+                    <h2>{{ recipe.name }}</h2>
+                    <p><strong>Allergens:</strong> {{ recipe.allergens }}</p>
+                    <p><strong>Rating:</strong> ⭐ {{ recipe.rating }}</p>
+                    <a href="/recipe/{{ recipe.id }}">View full recipe</a>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No recipes available 😢</p>
+        {% endif %}
     </div>
 
-    <!-- FLOATING FAQ BUTTON SEMENTARA -->
+    <!-- FLOATING FAQ BUTTON -->
     <a href="#" id="faqBtn" title="FAQ">
         <i class="fas fa-question"></i>
     </a>
 
-<!-- FILTER POPUP -->
-<div id="filterPopup" class="popup" style="display:none;">
-    <div class="popup-content">
-        <span class="close" id="closePopup">&times;</span>
-        <h3>FILTER ALLERGIES</h3>
-        <form method="GET" action="/">
-            <label><input type="checkbox" name="allergy" value="gluten"> Gluten</label>
-            <label><input type="checkbox" name="allergy" value="dairy"> Dairy</label>
-            <label><input type="checkbox" name="allergy" value="nut"> Nuts</label>
-            <label><input type="checkbox" name="allergy" value="egg"> Egg</label>
-            <button type="submit">Apply Filter</button>
-        </form>
+    <!-- FILTER POPUP -->
+    <div id="filterPopup" class="popup" style="display:none;">
+        <div class="popup-content">
+            <span class="close" id="closePopup">&times;</span>
+            <h3>FILTER ALLERGIES</h3>
+            <form method="GET" action="{{ url_for('main') }}">
+                <label><input type="checkbox" name="allergy" value="gluten"> Gluten</label>
+                <label><input type="checkbox" name="allergy" value="dairy"> Dairy</label>
+                <label><input type="checkbox" name="allergy" value="nut"> Nuts</label>
+                <label><input type="checkbox" name="allergy" value="egg"> Egg</label>
+                <button type="submit">Apply Filter</button>
+            </form>
+        </div>
     </div>
-</div>
-
-<style>
-/* Styling copy dari kawan kau */
-.popup {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 1000;
-}
-.popup-content {
-    background-color: #fffaf4;
-    padding: 25px;
-    margin: 8% auto;
-    width: 350px;
-    border-radius: 20px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    text-align: left;
-    position: relative;
-    animation: fadeIn 0.3s ease-in-out;
-}
-.popup-content h3 {
-    margin-bottom: 0;
-    color: #b23a2e;
-    text-align: center;
-    font-size: 22px;
-}
-.close {
-    position: absolute;
-    top: 12px;
-    right: 18px;
-    font-size: 24px;
-    font-weight: bold;
-    color: #b23a2e;
-    cursor: pointer;
-    transition: 0.2s;
-}
-.close:hover {
-    color: #8e2f24;
-}
-label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 16px;
-    color: #333;
-    cursor: pointer;
-}
-button[type="submit"] {
-    background-color: #b23a2e;
-    color: white;
-    padding: 10px;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    width: 100%;
-    font-weight: bold;
-    font-size: 16px;
-    margin-top: 15px;
-    transition: all 0.2s ease-in-out;
-}
-button[type="submit"]:hover {
-    background-color: #8e2f24;
-    transform: scale(1.05);
-}
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.9);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-</style>
 
 <script>
 const filterBtn = document.getElementById("filterBtn");
@@ -283,6 +266,5 @@ window.addEventListener("click", (e) => {
     }
 });
 </script>
-
 </body>
 </html>
