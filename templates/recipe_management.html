@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Recipe Management{% endblock %}
+{% block page_title %}Recipe Management{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Allergy Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('recipe_management') }}" class="row g-3">
+            <div class="col-md-5">
+                <label for="allergy_filter" class="form-label">Filter by Allergy</label>
+                <select class="form-select" id="allergy_filter" name="allergy_filter">
+                    <option value="all">Show All Recipes</option>
+                    {% for allergy in allergies %}
+                    <option value="{{ allergy.id }}" {% if selected_allergy == allergy.id|string %}selected{% endif %}>
+                        {{ allergy.category }} - {{ allergy.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Filter Type</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="exclude" id="include" value="0" 
+                           {% if not exclude_allergy %}checked{% endif %}>
+                    <label class="form-check-label" for="include">
+                        Show recipes WITH this allergen
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="exclude" id="exclude" value="1"
+                           {% if exclude_allergy %}checked{% endif %}>
+                    <label class="form-check-label" for="exclude">
+                        Show recipes WITHOUT this allergen
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Apply Filter</button>
+                <a href="{{ url_for('recipe_management') }}" class="btn btn-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">All Recipes</h5>
+        <span class="badge bg-primary">{{ recipes|length }} recipes</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Category</th>
+                        <th>Allergens</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recipe in recipes %}
+                    <tr>
+                        <td>{{ recipe.id }}</td>
+                        <td>{{ recipe.title }}</td>
+                        <td>
+                            {% if recipe.author_name %}
+                                {{ recipe.author_name }}
+                                {% if recipe.author_username %}
+                                    <br><small class="text-muted">@{{ recipe.author_username }}</small>
+                                {% endif %}
+                            {% elif recipe.author_username %}
+                                {{ recipe.author_username }}
+                            {% else %}
+                                <span class="text-muted">Unknown Author</span>
+                                {% endif %}
+                        </td>
+                        <td>{{ recipe.category }}</td>
+                        <td>
+                            {% set recipe_allergies = recipe_allergies_map[recipe.id] %}
+                            {% if recipe_allergies %}
+                                {% for allergy in recipe_allergies %}
+                                <span class="badge bg-warning text-dark me-1" title="{{ allergy.notes }}">
+                                    {{ allergy.name }}
+                                </span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">None</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if recipe.status == 'active' %}bg-success{% else %}bg-danger{% endif %} status-badge">
+                                {{ recipe.status }}
+                            </span>
+                        </td>
+                        <td>{{ recipe.created_at }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('manage_recipe_allergies', recipe_id=recipe.id) }}" 
+                                   class="btn btn-sm btn-info" title="Manage Allergies">
+                                    <i class="fas fa-allergies"></i>
+                                </a>
+                                {% if recipe.status == 'active' %}
+                                <a href="{{ url_for('suspend_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-warning" title="Suspend Recipe">
+                                    <i class="fas fa-ban"></i>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('activate_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-success" title="Activate Recipe">
+                                    <i class="fas fa-check"></i>
+                                </a>
+                                {% endif %}
+                                <a href="{{ url_for('delete_recipe_route', recipe_id=recipe.id) }}" class="btn btn-sm btn-danger" title="Delete Recipe" onclick="return confirm('Are you sure you want to delete this recipe?')">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center">No recipes found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
