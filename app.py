@@ -664,14 +664,33 @@ def allergy_management():
 def manage_recipe_allergies(recipe_id):
     """Admin assigns allergies when approving recipes"""
     recipe = get_recipe_by_id(recipe_id)
-    recipe = ensure_dict(recipe) or {}
-    all_allergies = get_all_allergies()
+
+    # Normalize recipe
+    recipe = ensure_dict(recipe)
+    if not recipe:
+        flash("Recipe not found.", "error")
+        return redirect(url_for("recipe_management"))
+
+    # Ensure safe keys for template
+    recipe_fixed = {
+        "id": recipe.get("id"),
+        "title": recipe.get("title") or recipe.get("name") or "Untitled",
+        "description": recipe.get("description", ""),
+        "category": recipe.get("category", "Uncategorized"),
+        "author": recipe.get("author") or {"username": "Unknown"},
+    }
+
+    all_allergies = [ensure_dict(a) or {} for a in get_all_allergies()]
     recipe_allergies = get_recipe_allergies(recipe_id)
-    recipe_allergy_ids = [a['id'] for a in recipe_allergies] if recipe_allergies else []
-    return render_template('manage_recipe_allergies.html',
-                           recipe=recipe,
-                           all_allergies=[ensure_dict(a) or {} for a in all_allergies],
-                           recipe_allergy_ids=recipe_allergy_ids)
+    recipe_allergy_ids = [a.get("id") for a in recipe_allergies] if recipe_allergies else []
+
+    return render_template(
+        "manage_recipe_allergies.html",
+        recipe=recipe_fixed,
+        all_allergies=all_allergies,
+        recipe_allergy_ids=recipe_allergy_ids,
+    )
+
 
 # ---------------------- RECIPE REPORTS ----------------------
 @app.route('/recipe-reports')
@@ -883,7 +902,6 @@ def user_submit_recipe():
 
 @app.route('/submit-recipe', methods=['GET', 'POST'])
 def submit_recipe():
-    # This route is a stub in your original: keep placeholder if you extend
     prep_time = request.form.get('prep_time') if request.method == 'POST' else None
     cook_time = request.form.get('cook_time') if request.method == 'POST' else None
     servings = request.form.get('servings') if request.method == 'POST' else None
