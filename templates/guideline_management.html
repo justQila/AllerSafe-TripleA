@@ -1,0 +1,68 @@
+
+{% extends "base.html" %}
+
+{% block title %}Guideline Management{% endblock %}
+{% block page_title %}Guideline Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Community Guidelines</h3>
+    <a href="{{ url_for('add_edit_guideline') }}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i> Add New Guideline
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Guidelines List
+    </div>
+    <div class="card-body p-0">
+        {% if guidelines %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for guideline in guidelines %}
+                    <tr>
+                        <td>{{ guideline.title }}</td>
+                        <td>
+                            <span class="badge bg-secondary">{{ guideline.category|title }}</span>
+                        </td>
+                        <td>
+                            <span class="badge {% if guideline.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                {% if guideline.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ guideline.updated_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <a href="{{ url_for('add_edit_guideline', guideline_id=guideline.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <form method="POST" action="{{ url_for('toggle_guideline', guideline_id=guideline.id) }}" class="d-inline">
+                                <button type="submit" class="btn btn-sm {% if guideline.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                                    <i class="fas {% if guideline.is_active %}fa-eye-slash{% else %}fa-eye{% endif %}"></i> 
+                                    {% if guideline.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center">
+            <p class="text-muted">No guidelines found. <a href="{{ url_for('add_edit_guideline') }}">Create the first one</a>.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

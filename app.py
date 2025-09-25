@@ -19,9 +19,18 @@ from dotenv import load_dotenv
 # =========================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'FishyyFishhiodhwqhdqid190e71eu'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipe.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
+# ---------------- SQLALCHEMY DB (Recipes) ----------------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, "recipe.db")
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 
 # Init database
 db = SQLAlchemy(app)
@@ -154,22 +163,53 @@ def recipe_management():
                            allergies=allergies, selected_allergy=allergy_filter,
                            exclude_allergy=exclude_allergy, recipe_allergies_map=recipe_allergies_map)
 
-@app.route('/manage-recipe-allergies/<int:recipe_id>')
-@login_required
-def manage_recipe_allergies(recipe_id):
-    recipe = get_recipe_by_id(recipe_id)
-    if not recipe:
-        flash('Recipe not found.', 'error')
-        return redirect(url_for('recipe_management'))
-    
-    all_allergies = get_all_allergies()
-    recipe_allergies = get_recipe_allergies(recipe_id)
-    recipe_allergy_ids = [a['id'] for a in recipe_allergies]
-    
-    return render_template('manage_recipe_allergies.html', 
-                         recipe=recipe, 
-                         all_allergies=all_allergies,
-                         recipe_allergy_ids=recipe_allergy_ids)
+@app.route('/add', methods=['GET', 'POST'])
+def add_recipe():
+    if request.method == 'POST':
+        name = request.form['name']
+        allergens = request.form['allergens']
+        instruction = request.form['instruction']
+        rating = float(request.form['rating']) if request.form['rating'] else 0.0
+
+        photo = request.files.get('photo')
+        photo_filename = None
+        if photo and allowed_file(photo.filename):
+            filename = secure_filename(photo.filename)
+            photo_filename = filename
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            photo.save(filepath)
+            # Resize image
+            max_size = (350, 350)
+            img = Image.open(filepath)
+            img.thumbnail(max_size)
+            img.save(filepath)
+
+        recipe = Recipe(
+            name=name,
+            allergens=allergens,
+            instruction=instruction,
+            rating=rating,
+            photo=photo_filename
+        )
+        db.session.add(recipe)
+        db.session.commit()
+
+        ingredients = request.form['ingredients'].split("\n")
+        for ing in ingredients:
+            if ing.strip():
+                parts = ing.split("-", 1)
+                name = parts[0].strip()
+                measurement = parts[1].strip() if len(parts) > 1 else None
+                db.session.add(Ingredient(recipe_id=recipe.id, name=name, measurement=measurement))
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template("add_recipe.html")
+
+@app.route('/recipe/<int:recipe_id>')
+def recipe_details(recipe_id):
+    recipe = Recipe.query.get_or_404(recipe_id)
+    return render_template("recipe_details.html", recipe=recipe)
 
 @app.route('/delete-recipe/<int:recipe_id>')
 @login_required
@@ -294,7 +334,7 @@ def register():
             return redirect(url_for("user_main"))
         except sqlite3.IntegrityError:
             flash("This username or email is already registered. Please log in instead.", "error")
-            return redirect(url_for("register"))
+            return redirect(url_for("login_user"))
     return render_template("register.html")
 
 @app.route("/AllerSafe/login", methods=["GET", "POST"])
@@ -303,6 +343,7 @@ def login_user():
         username = request.form["username"]
         password = request.form["password"]
         conn = sqlite3.connect("user.db", timeout=10)
+        conn.row_factory = sqlite3.Row
         user = conn.execute("SELECT * FROM users WHERE username = ? AND password = ?",
                             (username, password)).fetchone()
         conn.close()
@@ -350,6 +391,22 @@ def forgot_password_user():
         else:
             flash("Email not found!", "error")
     return render_template('forgot_password_user.html')
+
+@app.route("/AllerSafe/reset_password", methods=["POST"])
+def reset_password_user():
+    email = request.form["email"]
+    new_password = request.form["new_password"]
+    confirm_password = request.form["confirm_password"]
+
+    if new_password != confirm_password:
+        return "PASSWORDS DO NOT MATCH! <a href='/AllerSafe/forgot_password'>Try again</a>"
+    
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET password = ? WHERE email = ?", (new_password, email))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("login_user"))
+
 
 @app.route('/upgrade-db')
 @login_required
@@ -511,6 +568,140 @@ def delete_user_route(user_id):
     else:
         flash('User not found.', 'error')
     return redirect(url_for('user_management'))
+
+@app.route('/allergy-management')
+@login_required
+def allergy_management():
+    """Admin manages allergy master data"""
+    allergies = get_all_allergies()
+    return render_template('allergy_management.html', allergies=allergies)
+
+@app.route('/manage-recipe-allergies/<int:recipe_id>')
+@login_required  
+def manage_recipe_allergies(recipe_id):
+    """Admin assigns allergies when approving recipes"""
+    recipe = get_recipe_by_id(recipe_id)
+    all_allergies = get_all_allergies()
+    recipe_allergies = get_recipe_allergies(recipe_id) 
+    recipe_allergy_ids = [a['id'] for a in recipe_allergies]
+    
+    return render_template('manage_recipe_allergies.html', 
+                         recipe=recipe, 
+                         all_allergies=all_allergies,
+                         recipe_allergy_ids=recipe_allergy_ids)
+
+# ---------------------- RECIPE REPORTS ----------------------
+
+@app.route('/recipe-reports')
+@login_required
+def recipe_reports():
+    """Display recipe reports"""
+    reports = get_all_recipe_reports()
+    return render_template('recipe_reports.html', reports=reports)
+
+@app.route('/user-warnings')
+@login_required
+def user_warnings():
+    """Display user warnings"""
+    warnings = get_all_warnings()
+    
+    # Get user and admin info for each warning
+    for warning in warnings:
+        if warning.get('user_id'):
+            user = get_user_by_id(warning['user_id'])
+            warning['user'] = user if user else {'username': 'Unknown'}
+        
+        if warning.get('admin_id'):
+            admin = get_admin_by_id(warning['admin_id'])
+            warning['admin'] = admin if admin else {'username': 'Unknown'}
+    
+    return render_template('user_warnings.html', warnings=warnings)
+
+# ---------------------- GUIDELINES ----------------------
+
+@app.route('/guideline-management')
+@login_required
+def guideline_management():
+    """Display guidelines management"""
+    guidelines = get_all_guidelines()
+    return render_template('guideline_management.html', guidelines=guidelines)
+
+@app.route('/add-edit-guideline', methods=['GET', 'POST'])
+@app.route('/add-edit-guideline/<int:guideline_id>', methods=['GET', 'POST'])
+@login_required
+def add_edit_guideline(guideline_id=None):
+    """Add or edit a guideline"""
+    guideline = None
+    if guideline_id:
+        guideline = get_guideline_by_id(guideline_id)
+        if not guideline:
+            flash('Guideline not found.', 'error')
+            return redirect(url_for('guideline_management'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        content = request.form.get('content')
+        category = request.form.get('category')
+        severity = request.form.get('severity')
+        
+        if guideline_id:
+            update_guideline(guideline_id, title, content, category, severity)
+            add_audit_log(session['admin_id'], 'Guideline Updated', 'guideline', guideline_id, 
+                          f"Updated guideline: {title}", request.remote_addr)
+            flash('Guideline updated successfully.', 'success')
+        else:
+            new_id = insert_guideline(title, content, category, severity)
+            add_audit_log(session['admin_id'], 'Guideline Created', 'guideline', new_id, 
+                          f"Created guideline: {title}", request.remote_addr)
+            flash('Guideline created successfully.', 'success')
+        
+        return redirect(url_for('guideline_management'))
+    
+    return render_template('add_edit_guideline.html', guideline=guideline)
+
+@app.route('/delete-guideline/<int:guideline_id>')
+@login_required
+def delete_guideline_route(guideline_id):
+    """Delete a guideline"""
+    guideline = get_guideline_by_id(guideline_id)
+    if guideline:
+        delete_guideline(guideline_id)
+        add_audit_log(session['admin_id'], 'Guideline Deleted', 'guideline', guideline_id, 
+                      f"Deleted guideline: {guideline['title']}", request.remote_addr)
+        flash('Guideline deleted successfully.', 'success')
+    else:
+        flash('Guideline not found.', 'error')
+    return redirect(url_for('guideline_management'))
+
+# ---------------------- RECIPE MANAGEMENT ACTIONS ----------------------
+
+@app.route('/suspend-recipe/<int:recipe_id>')
+@login_required
+def suspend_recipe(recipe_id):
+    """Suspend a recipe"""
+    recipe = get_recipe_by_id(recipe_id)
+    if recipe:
+        update_recipe_status(recipe_id, 'suspended')
+        add_audit_log(session['admin_id'], 'Recipe Suspended', 'recipe', recipe_id, 
+                      f"Suspended recipe: {recipe['title']}", request.remote_addr)
+        flash(f"Recipe '{recipe['title']}' has been suspended.", 'warning')
+    else:
+        flash('Recipe not found.', 'error')
+    return redirect(url_for('recipe_management'))
+
+@app.route('/activate-recipe/<int:recipe_id>')
+@login_required
+def activate_recipe(recipe_id):
+    """Activate a recipe"""
+    recipe = get_recipe_by_id(recipe_id)
+    if recipe:
+        update_recipe_status(recipe_id, 'active')
+        add_audit_log(session['admin_id'], 'Recipe Activated', 'recipe', recipe_id, 
+                      f"Activated recipe: {recipe['title']}", request.remote_addr)
+        flash(f"Recipe '{recipe['title']}' has been activated.", 'success')
+    else:
+        flash('Recipe not found.', 'error')
+    return redirect(url_for('recipe_management'))
 
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
