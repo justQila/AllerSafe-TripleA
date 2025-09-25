@@ -35,11 +35,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Init database
 db = SQLAlchemy(app)
 
-# initialize the admin database when the app starts (functions live in database.py)
-with app.app_context():
-    init_db()
-    db.create_all()
-
 # =========================
 # UTILITIES
 # =========================
@@ -135,16 +130,27 @@ def logout():
 def dashboard():
     admin = get_admin_by_id(session['admin_id'])
 
-    # Stats (using DB_NAME from database.py)
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.row_factory = sqlite3.Row
-        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-        recipe_count = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
-        active_users = conn.execute('SELECT COUNT(*) FROM users WHERE status="active"').fetchone()[0]
+    # --- Users from user.db ---
+    with sqlite3.connect("user.db") as conn_user:
+        conn_user.row_factory = sqlite3.Row
+        user_count = conn_user.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        active_users = conn_user.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
 
+    # --- Recipes from recipe.db (via SQLAlchemy) ---
+    recipe_count = Recipe.query.count()
+
+    # --- Recent audit logs from admin_panel.db ---
     logs = get_audit_logs(limit=5)
-    return render_template('dashboard.html', admin=admin, user_count=user_count,
-                           recipe_count=recipe_count, active_users=active_users, logs=logs)
+
+    return render_template(
+        'dashboard.html',
+        admin=admin,
+        user_count=user_count,
+        recipe_count=recipe_count,
+        active_users=active_users,
+        logs=logs
+    )
+
 
 # =========================
 # MODELS (Amirah) - SQLAlchemy (recipes stored in recipe.db)
@@ -650,47 +656,6 @@ def delete_user_route(user_id):
         flash('User not found.', 'error')
     return redirect(url_for('user_management'))
 
-@app.route('/allergy-management')
-@login_required
-def allergy_management():
-    """Admin manages allergy master data"""
-    allergies = get_all_allergies()
-    # ensure dicts for template safety
-    allergies_fixed = [ensure_dict(a) or {} for a in allergies]
-    return render_template('allergy_management.html', allergies=allergies_fixed)
-
-@app.route('/manage-recipe-allergies/<int:recipe_id>')
-@login_required
-def manage_recipe_allergies(recipe_id):
-    """Admin assigns allergies when approving recipes"""
-    recipe = get_recipe_by_id(recipe_id)
-
-    # Normalize recipe
-    recipe = ensure_dict(recipe)
-    if not recipe:
-        flash("Recipe not found.", "error")
-        return redirect(url_for("recipe_management"))
-
-    # Ensure safe keys for template
-    recipe_fixed = {
-        "id": recipe.get("id"),
-        "title": recipe.get("title") or recipe.get("name") or "Untitled",
-        "description": recipe.get("description", ""),
-        "category": recipe.get("category", "Uncategorized"),
-        "author": recipe.get("author") or {"username": "Unknown"},
-    }
-
-    all_allergies = [ensure_dict(a) or {} for a in get_all_allergies()]
-    recipe_allergies = get_recipe_allergies(recipe_id)
-    recipe_allergy_ids = [a.get("id") for a in recipe_allergies] if recipe_allergies else []
-
-    return render_template(
-        "manage_recipe_allergies.html",
-        recipe=recipe_fixed,
-        all_allergies=all_allergies,
-        recipe_allergy_ids=recipe_allergy_ids,
-    )
-
 
 # ---------------------- RECIPE REPORTS ----------------------
 @app.route('/recipe-reports')
@@ -902,6 +867,7 @@ def user_submit_recipe():
 
 @app.route('/submit-recipe', methods=['GET', 'POST'])
 def submit_recipe():
+    # This route is a stub in your original: keep placeholder if you extend
     prep_time = request.form.get('prep_time') if request.method == 'POST' else None
     cook_time = request.form.get('cook_time') if request.method == 'POST' else None
     servings = request.form.get('servings') if request.method == 'POST' else None
@@ -911,3 +877,4 @@ def submit_recipe():
 # ---------------------- RUN ----------------------
 if __name__ == '__main__':
     app.run(debug=True)
+    
