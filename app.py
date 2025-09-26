@@ -160,7 +160,10 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-
+# Manual
+@app.route("/manual")
+def manual():
+    return render_template("manual.html")
 
 # =========================
 # MODELS (Amirah) - SQLAlchemy (recipes stored in recipe.db)
@@ -1365,3 +1368,4 @@ def submit_recipe():
 if __name__ == '__main__':
     app.run(debug=True)
     
+
