@@ -3,18 +3,25 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import secrets
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from dotenv import load_dotenv
+load_dotenv()
+
+# Gmail SMTP instead of SendGrid
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 DB_NAME = 'admin_panel.db'
 
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "adore623@gmail.com")
+# Gmail configuration
+GMAIL_EMAIL = os.getenv("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 # ---------------------- DATABASE INITIALIZATION ----------------------
 
 def init_db():
     conn = None
+    
     try:
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
@@ -58,22 +65,6 @@ def init_db():
             )
         ''')
         
-        # Recipes table
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS recipes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT UNIQUE NOT NULL,
-                description TEXT,
-                ingredients TEXT,
-                instructions TEXT,
-                category TEXT,
-                status TEXT DEFAULT 'active',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                author_id INTEGER,
-                FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
-            )
-        ''')
-        
         # Audit log
         conn.execute('''
             CREATE TABLE IF NOT EXISTS audit_log (
@@ -87,31 +78,6 @@ def init_db():
                 ip_address TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (admin_id) REFERENCES admins(id)
-            )
-        ''')
-        
-        # Allergies
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS allergies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                category TEXT NOT NULL,
-                severity TEXT DEFAULT 'medium',
-                description TEXT,
-                cross_reactivity TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Recipe allergies junction
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS recipe_allergies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                recipe_id INTEGER,
-                allergy_id INTEGER,
-                FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
-                FOREIGN KEY (allergy_id) REFERENCES allergies(id) ON DELETE CASCADE,
-                UNIQUE(recipe_id, allergy_id)
             )
         ''')
         
@@ -163,13 +129,17 @@ def init_db():
         ''')
 
         # Add sample data (these functions protect against duplicates)
-        add_sample_users(conn)
-        add_sample_recipes(conn)
-        add_sample_allergies(conn)
         add_sample_guidelines(conn)
         
         # Seed admins (separate function)
         seed_admins()
+        
+        # Add is_active column to guidelines if it doesn't exist
+        cursor = conn.execute("PRAGMA table_info(guidelines)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "is_active" not in columns:
+            conn.execute("ALTER TABLE guidelines ADD COLUMN is_active INTEGER DEFAULT 1")
+            print("Added 'is_active' column to guidelines")
         
         conn.commit()
         print("Database initialized successfully!")
@@ -184,67 +154,6 @@ def init_db():
             conn.close()
 
 # ---------------------- SAMPLE DATA ----------------------
-
-def add_sample_users(conn):
-    """Add sample users if they do not exist"""
-    sample_users = [
-        ('john_doe', 'john@example.com', 'John Doe'),
-        ('jane_smith', 'jane@example.com', 'Jane Smith'),
-        ('bob_wilson', 'bob@example.com', 'Bob Wilson')
-    ]
-    for username, email, full_name in sample_users:
-        existing_user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-        if not existing_user:
-            conn.execute(
-                'INSERT INTO users (username, email, full_name) VALUES (?, ?, ?)',
-                (username, email, full_name)
-            )
-
-def add_sample_recipes(conn):
-    """Add sample recipes if they do not exist"""
-    john_user = conn.execute('SELECT * FROM users WHERE username = ?', ('john_doe',)).fetchone()
-    jane_user = conn.execute('SELECT * FROM users WHERE username = ?', ('jane_smith',)).fetchone()
-    bob_user = conn.execute('SELECT * FROM users WHERE username = ?', ('bob_wilson',)).fetchone()
-    john_id = john_user['id'] if john_user else None
-    jane_id = jane_user['id'] if jane_user else None
-    bob_id = bob_user['id'] if bob_user else None
-    
-    sample_recipes = [
-        ('Spaghetti Carbonara', 'Classic Italian pasta dish', 'Pasta, Eggs, Cheese, Pancetta', 
-         '1. Cook pasta 2. Mix ingredients 3. Serve hot', 'Pasta', 'active', john_id),
-        ('Chocolate Cake', 'Rich chocolate dessert', 'Flour, Sugar, Cocoa, Eggs, Milk', 
-         '1. Mix dry ingredients 2. Add wet ingredients 3. Bake at 350°F for 30min', 'Dessert', 'active', jane_id),
-        ('Pending Cookies', 'Awaiting approval', 'Flour, Sugar, Butter', 
-         'Mix and bake', 'Dessert', 'pending', bob_id),
-    ]
-    for title, description, ingredients, instructions, category, status, author_id in sample_recipes:
-        existing_recipe = conn.execute('SELECT * FROM recipes WHERE title = ?', (title,)).fetchone()
-        if not existing_recipe:
-            conn.execute(
-                'INSERT INTO recipes (title, description, ingredients, instructions, category, status, author_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                (title, description, ingredients, instructions, category, status, author_id)
-            )
-
-def add_sample_allergies(conn):
-    """Add sample allergy data"""
-    sample_allergies = [
-        ('Peanuts', 'Food', 'high', 'Common severe allergy', 'Tree nuts'),
-        ('Tree Nuts', 'Food', 'high', 'Includes almonds, walnuts, etc', 'Peanuts'),
-        ('Shellfish', 'Food', 'high', 'Crustaceans and mollusks', 'Fish'),
-        ('Fish', 'Food', 'medium', 'All finned fish', 'Shellfish'),
-        ('Milk', 'Food', 'medium', 'Dairy products', None),
-        ('Eggs', 'Food', 'medium', 'Chicken eggs most common', None),
-        ('Soy', 'Food', 'low', 'Soybean products', 'Legumes'),
-        ('Wheat', 'Food', 'medium', 'Contains gluten', 'Gluten grains'),
-    ]
-    
-    for name, category, severity, description, cross_reactivity in sample_allergies:
-        existing = conn.execute('SELECT * FROM allergies WHERE name = ?', (name,)).fetchone()
-        if not existing:
-            conn.execute(
-                'INSERT INTO allergies (name, category, severity, description, cross_reactivity) VALUES (?, ?, ?, ?, ?)',
-                (name, category, severity, description, cross_reactivity)
-            )
 
 def add_sample_guidelines(conn):
     """Add sample guidelines"""
@@ -312,15 +221,17 @@ def seed_admins():
         ]
         
         for a in admins:
-            hashed = generate_password_hash(a['password'])
+            hashed = hash_password(a['password'])
             try:
                 cursor.execute("INSERT INTO admins (username, password_hash, email) VALUES (?, ?, ?)",
                                (a['username'], hashed, a['email']))
-            except sqlite3.IntegrityError:
-                pass  # Admin already exists, skip
+                print(f"Created admin: {a['username']}")
+            except sqlite3.IntegrityError as e:
+                print(f"Admin {a['username']} already exists: {e}")
         
         conn.commit()
         print("Admin accounts created successfully!")
+        
     except Exception as e:
         print(f"Error seeding admins: {e}")
         if conn:
@@ -432,53 +343,82 @@ def upgrade_audit_log_table():
 # ---------------------- USERS ----------------------
 
 def get_all_users():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("user.db")
     conn.row_factory = sqlite3.Row
-    users = conn.execute('SELECT * FROM users').fetchall()
+    users = conn.execute("SELECT * FROM users").fetchall()
     conn.close()
-    return [dict(u) for u in users]
+    return users
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("user.db")
     conn.row_factory = sqlite3.Row
     user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     conn.close()
     return dict(user) if user else None
 
 def update_user_status(user_id, status):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("user.db")
     conn.execute('UPDATE users SET status = ? WHERE id = ?', (status, user_id))
     conn.commit()
     conn.close()
 
 def delete_user(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("user.db")
     conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
     conn.close()
 
 # ---------------------- RECIPES ----------------------
 
+def get_recipe_by_id(recipe_id):
+    conn = sqlite3.connect("recipe.db")
+    conn.row_factory = sqlite3.Row
+    recipe = conn.execute('SELECT * FROM recipe WHERE id = ?', (recipe_id,)).fetchone()  
+    conn.close()
+    return dict(recipe) if recipe else None
+
+def get_all_recipes():
+    """Fixed version - looks in 'recipe' table"""
+    conn = sqlite3.connect("recipe.db")
+    conn.row_factory = sqlite3.Row
+    recipes = conn.execute('SELECT * FROM recipe').fetchall()
+    conn.close()
+    return [dict(r) for r in recipes]
+
 def get_all_recipes_with_authors():
-    """Get all recipes with author information joined"""
-    conn = sqlite3.connect(DB_NAME)
+    """Fixed version - looks in 'recipe' table with users from user.db"""
+    conn = sqlite3.connect("recipe.db")
     conn.row_factory = sqlite3.Row
     recipes = conn.execute('''
         SELECT r.*, u.username as author_username, u.full_name as author_name
-        FROM recipes r
+        FROM recipe r
         LEFT JOIN users u ON r.author_id = u.id
         ORDER BY r.created_at DESC
     ''').fetchall()
     conn.close()
     return [dict(r) for r in recipes]
 
+def update_recipe_status(recipe_id, status):
+    """Fixed version - updates 'recipe' table"""
+    conn = sqlite3.connect("recipe.db")
+    conn.execute('UPDATE recipe SET status = ? WHERE id = ?', (status, recipe_id))
+    conn.commit()
+    conn.close()
+
+def delete_recipe(recipe_id):
+    """Fixed version - deletes from 'recipe' table"""
+    conn = sqlite3.connect("recipe.db")
+    conn.execute('DELETE FROM recipe WHERE id = ?', (recipe_id,))
+    conn.commit()
+    conn.close()
+
 def get_recipes_by_allergy_with_authors(allergy_id):
-    """Get recipes by allergy with author information"""
-    conn = sqlite3.connect(DB_NAME)
+    """Fixed version - uses 'recipe' table"""
+    conn = sqlite3.connect("recipe.db")
     conn.row_factory = sqlite3.Row
     rows = conn.execute('''
         SELECT r.*, u.username as author_username, u.full_name as author_name
-        FROM recipes r
+        FROM recipe r
         LEFT JOIN users u ON r.author_id = u.id
         JOIN recipe_allergies ra ON r.id = ra.recipe_id
         WHERE ra.allergy_id = ?
@@ -487,12 +427,12 @@ def get_recipes_by_allergy_with_authors(allergy_id):
     return [dict(r) for r in rows]
 
 def get_recipes_without_allergy_with_authors(allergy_id):
-    """Get recipes without specific allergy with author information"""
-    conn = sqlite3.connect(DB_NAME)
+    """Fixed version - uses 'recipe' table"""
+    conn = sqlite3.connect("recipe.db")
     conn.row_factory = sqlite3.Row
     rows = conn.execute('''
         SELECT r.*, u.username as author_username, u.full_name as author_name
-        FROM recipes r
+        FROM recipe r
         LEFT JOIN users u ON r.author_id = u.id
         WHERE r.id NOT IN (
             SELECT recipe_id FROM recipe_allergies WHERE allergy_id = ?
@@ -500,39 +440,6 @@ def get_recipes_without_allergy_with_authors(allergy_id):
     ''', (allergy_id,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
-
-def get_all_recipes():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    recipes = conn.execute('SELECT * FROM recipes').fetchall()
-    conn.close()
-    return [dict(r) for r in recipes]
-
-def get_recipe_by_id(recipe_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    recipe = conn.execute('SELECT * FROM recipes WHERE id = ?', (recipe_id,)).fetchone()
-    conn.close()
-    return dict(recipe) if recipe else None
-
-def update_recipe_status(recipe_id, status):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('UPDATE recipes SET status = ? WHERE id = ?', (status, recipe_id))
-    conn.commit()
-    conn.close()
-
-def delete_recipe(recipe_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('DELETE FROM recipes WHERE id = ?', (recipe_id,))
-    conn.commit()
-    conn.close()
-
-def approve_recipe(recipe_id):
-    update_recipe_status(recipe_id, 'active')
-
-def reject_recipe(recipe_id, reason=None):
-    # reason optional; you may want to create a rejection log elsewhere
-    update_recipe_status(recipe_id, 'rejected')
 
 # ---------------------- RECIPE REPORTS ----------------------
 
@@ -547,90 +454,6 @@ def handle_recipe_report(report_id, admin_id, action_taken):
     conn = sqlite3.connect(DB_NAME)
     conn.execute('UPDATE recipe_reports SET status = "handled", handled_by = ?, action_taken = ? WHERE id = ?', 
                  (admin_id, action_taken, report_id))
-    conn.commit()
-    conn.close()
-
-# ---------------------- ALLERGIES ----------------------
-
-def get_all_allergies():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    allergies = conn.execute('SELECT * FROM allergies ORDER BY name COLLATE NOCASE').fetchall()
-    conn.close()
-    return [dict(a) for a in allergies]
-
-def get_recipe_allergies(recipe_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('''
-        SELECT a.* FROM allergies a 
-        JOIN recipe_allergies ra ON a.id = ra.allergy_id 
-        WHERE ra.recipe_id = ?
-    ''', (recipe_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def get_allergies_for_recipes(recipe_ids):
-    if not recipe_ids:
-        return {}
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    placeholders = ','.join(['?']*len(recipe_ids))
-    query = f"SELECT * FROM recipe_allergies WHERE recipe_id IN ({placeholders})"
-    rows = conn.execute(query, recipe_ids).fetchall()
-    conn.close()
-    result = {}
-    for row in rows:
-        result.setdefault(row['recipe_id'], []).append(row['allergy_id'])
-    return result
-
-def get_recipes_by_allergy(allergy_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('''
-        SELECT r.* FROM recipes r
-        JOIN recipe_allergies ra ON r.id = ra.recipe_id
-        WHERE ra.allergy_id = ?
-    ''', (allergy_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def get_recipes_without_allergy(allergy_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('''
-        SELECT * FROM recipes WHERE id NOT IN (
-            SELECT recipe_id FROM recipe_allergies WHERE allergy_id = ?
-        )
-    ''', (allergy_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def insert_allergy(name, category, severity, description=None, cross_reactivity=None):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO allergies (name, category, severity, description, cross_reactivity) 
-        VALUES (?, ?, ?, ?, ?)
-    ''', (name, category, severity, description, cross_reactivity))
-    conn.commit()
-    new_id = cursor.lastrowid
-    conn.close()
-    return new_id
-
-def update_allergy(allergy_id, name, category, severity, description=None, cross_reactivity=None):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('''
-        UPDATE allergies 
-        SET name=?, category=?, severity=?, description=?, cross_reactivity=? 
-        WHERE id=?
-    ''', (name, category, severity, description, cross_reactivity, allergy_id))
-    conn.commit()
-    conn.close()
-
-def delete_allergy(allergy_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('DELETE FROM allergies WHERE id = ?', (allergy_id,))
     conn.commit()
     conn.close()
 
@@ -680,72 +503,250 @@ def delete_guideline(guideline_id):
     conn.commit()
     conn.close()
 
+def toggle_guideline_status(guideline_id, is_active):
+    """Toggle guideline active/inactive status"""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("""
+            UPDATE guidelines 
+            SET is_active = ?, updated_at = datetime('now', 'localtime')
+            WHERE id = ?
+        """, (is_active, guideline_id))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 # ---------------------- USER WARNINGS ----------------------
 
 def add_user_warning(user_id, admin_id, guideline_id=None, custom_reason=None, severity='warning'):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('''
-        INSERT INTO user_warnings (user_id, admin_id, guideline_id, custom_reason, severity)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (user_id, admin_id, guideline_id, custom_reason, severity))
-    conn.commit()
-    conn.close()
-
-def get_all_warnings():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('SELECT * FROM user_warnings').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    """Add a warning for a user with proper error handling"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO user_warnings (user_id, admin_id, guideline_id, custom_reason, severity)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, admin_id, guideline_id, custom_reason, severity))
+        
+        conn.commit()
+        warning_id = cursor.lastrowid
+        print(f"Warning added successfully (ID: {warning_id})")
+        return warning_id
+        
+    except sqlite3.Error as e:
+        print(f"Error adding user warning: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_user_warnings(user_id):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('SELECT * FROM user_warnings WHERE user_id = ?', (user_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    """Get all warnings for a specific user with detailed information"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.execute('''
+            SELECT uw.*, a.username as admin_username, g.title as guideline_title
+            FROM user_warnings uw
+            LEFT JOIN admins a ON uw.admin_id = a.id
+            LEFT JOIN guidelines g ON uw.guideline_id = g.id
+            WHERE uw.user_id = ?
+            ORDER BY uw.created_at DESC
+        ''', (user_id,))
+        
+        warnings = cursor.fetchall()
+        return [dict(warning) for warning in warnings]
+        
+    except sqlite3.Error as e:
+        print(f"Error fetching user warnings: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
-# ---------------------- PENDING RECIPES ----------------------
+def get_all_warnings():
+    """Get all warnings with user and admin details"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.execute('''
+            SELECT uw.*, 
+                   u.username as user_username,
+                   a.username as admin_username, 
+                   g.title as guideline_title
+            FROM user_warnings uw
+            LEFT JOIN users u ON uw.user_id = u.id
+            LEFT JOIN admins a ON uw.admin_id = a.id
+            LEFT JOIN guidelines g ON uw.guideline_id = g.id
+            ORDER BY uw.created_at DESC
+        ''')
+        
+        warnings = cursor.fetchall()
+        return [dict(warning) for warning in warnings]
+        
+    except sqlite3.Error as e:
+        print(f"Error fetching all warnings: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
-def get_pending_recipes():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('SELECT * FROM recipes WHERE status = "pending" ORDER BY created_at DESC').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_warning_count(user_id):
+    """Get the number of warnings for a user"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) FROM user_warnings WHERE user_id = ?', (user_id,))
+        count = cursor.fetchone()[0]
+        return count
+        
+    except sqlite3.Error as e:
+        print(f"Error counting warnings: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
 
-# ---------------------- SENDGRID EMAIL ----------------------
+def delete_warning(warning_id):
+    """Delete a specific warning"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM user_warnings WHERE id = ?', (warning_id,))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            print(f"Warning {warning_id} deleted successfully")
+            return True
+        else:
+            print(f"Warning {warning_id} not found")
+            return False
+            
+    except sqlite3.Error as e:
+        print(f"Error deleting warning {warning_id}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+# ---------------------- EMAIL FUNCTIONS (Gmail SMTP) ----------------------
 
 def send_reset_email(to_email, reset_url):
-    if not SENDGRID_API_KEY:
-        print("Warning: SENDGRID_API_KEY not set - skipping actual email send.")
+    """Send password reset email using Gmail SMTP"""
+    print(f"Attempting to send email to: {to_email}")
+    print(f"Gmail email: {GMAIL_EMAIL}")
+    print(f"App password present: {bool(GMAIL_APP_PASSWORD)}")
+    
+    if not GMAIL_APP_PASSWORD or not GMAIL_EMAIL:
+        print("Gmail configuration missing!")
+        print("Set GMAIL_EMAIL and GMAIL_APP_PASSWORD in your .env file")
         print(f"Would send reset link to {to_email}: {reset_url}")
-        return
-        
+        return False
+    
+    # Create message
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = "Password Reset - AllerSafe Recipe(s)"
+    msg['From'] = GMAIL_EMAIL
+    msg['To'] = to_email
+    
+    # HTML content
     html_content = f"""
     <html>
     <body>
+        <h2>Password Reset Request</h2>
         <p>Hello,</p>
         <p>We received a request to reset your password for your AllerSafe Recipe(s) account.</p>
-        <p><a href="{reset_url}" style="padding:10px 20px;background-color:#af4c0f;color:white;text-decoration:none;border-radius:5px;">Reset Password</a></p>
+        <p>Click the button below to reset your password:</p>
+        <p>
+            <a href="{reset_url}" 
+               style="background-color:#af4c0f;color:white;padding:15px 25px;text-decoration:none;border-radius:5px;font-weight:bold;">
+               Reset Password
+            </a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p><a href="{reset_url}">{reset_url}</a></p>
         <p>If you did not request a password reset, please ignore this email.</p>
+        <p><small>This email was sent on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+        <hr>
+        <p><small>AllerSafe Recipe System</small></p>
     </body>
     </html>
     """
     
-    message = Mail(
-        from_email=FROM_EMAIL,
-        to_emails=to_email,
-        subject="Password Reset - AllerSafe Recipe(s)",
-        html_content=html_content
-    )
+    # Plain text version (fallback)
+    text_content = f"""
+    Password Reset Request
+    
+    Hello,
+    
+    We received a request to reset your password for your AllerSafe Recipe(s) account.
+    
+    Click this link to reset your password:
+    {reset_url}
+    
+    If you did not request a password reset, please ignore this email.
+    
+    Sent on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    AllerSafe Recipe System
+    """
+    
+    # Create message parts
+    part1 = MIMEText(text_content, 'plain')
+    part2 = MIMEText(html_content, 'html')
+    
+    msg.attach(part1)
+    msg.attach(part2)
     
     try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
-        print(f"Email sent! Status code: {response.status_code}")
+        print("Connecting to Gmail SMTP server...")
+        # Gmail SMTP configuration
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()  # Enable TLS encryption
+        
+        print("Logging into Gmail...")
+        server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
+        
+        print("Sending email...")
+        server.send_message(msg)
+        server.quit()
+        
+        print("Email sent successfully via Gmail!")
+        return True
+        
+    except smtplib.SMTPAuthenticationError:
+        print("Gmail authentication failed!")
+        print("Make sure you're using an App Password, not your regular Gmail password")
+        print("Enable 2FA and create an App Password: https://myaccount.google.com/apppasswords")
+        return False
+    except smtplib.SMTPException as e:
+        print(f"SMTP error: {e}")
+        return False
     except Exception as e:
         print(f"Error sending email: {e}")
+        return False
+
+def get_user_name_by_id(user_id):
+    """Helper function to get username from user.db"""
+    if not user_id:  # Handle NULL author_id (admin-created recipes)
+        return 'Admin'
+    
+    try:
+        conn = sqlite3.connect("user.db")
+        conn.row_factory = sqlite3.Row
+        user = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+        conn.close()
+        return user['username'] if user else 'Unknown User'
+    except Exception as e:
+        print(f"Error fetching user: {e}")
+        return 'Unknown User'
 
 # ---------------------- MAIN EXECUTION ----------------------
 
@@ -757,7 +758,7 @@ if __name__ == "__main__":
     print("Username: admin1, Password: password1")
     print("Username: admin2, Password: password2") 
     print("Username: admin3, Password: password3\n")
-
+    
     # Demo: add a user log
     try:
         add_user_audit_log(user_id=1, action="demo_login", details="Demo: user logged in via script")
