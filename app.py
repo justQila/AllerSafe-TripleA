@@ -1,11 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
-import secrets
-from functools import wraps
-from database import *
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.secret_key ="secret123" # untuk session
 
 # =========================
 # DATABASE CONNECTION (User)
