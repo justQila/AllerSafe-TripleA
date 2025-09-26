@@ -16,6 +16,7 @@
         }
 
         .container {
+            position: relative; /* needed for absolute child positioning */
             background: #fff5eb;
             padding: 40px;
             border-radius: 15px;
@@ -60,23 +61,35 @@
             cursor: pointer;
             font-size: 16px;
             width: 100%;
-
         }
 
         button:hover {
             background: #A0522d;
+        }
 
+        /* Exit button in the corner */
+        .exit-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 20px;
+            text-decoration: none;
+            color: #A0522d;
+            font-weight: bold;
+        }
+        .exit-btn:hover {
+            color: #d2691e;
         }
     </style>
 
     <!-- font awesome CDN-->
-     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <a href="{{ url_for('main') }}" class="exit-btn" title="Close">
-        ✕
-        </a>
+        <!-- Corner Exit Button -->
+        <a href="{{ url_for('main') }}" class="exit-btn" title="Close">✕</a>
+
         <h2>Register</h2>
         <form id="registerForm" method="POST" action="/AllerSafe/register">
             <div class="input-group">
@@ -102,14 +115,14 @@
             <button type="submit">Register</button>
         </form>
 
-        <!----FLASH MESSAGES AS POPUP-->
+        <!-- Flash Messages as popup -->
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
                   <script>alert("{{ message }}");</script>
                 {% endfor %}
             {% endif %}
-         {% endwith %}
+        {% endwith %}
     </div>
 
     <script>
@@ -119,9 +132,10 @@
 
             if (pass !== confirm) {
                 e.preventDefault();
-                alert("Password do not match!!");
+                alert("Passwords do not match!!");
             }
         });
     </script>
 </body>
 </html>
+
