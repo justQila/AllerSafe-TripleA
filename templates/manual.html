@@ -79,12 +79,14 @@
 </head>
 <body>
 
-  <header>
-    <img src="Mr__potato-removebg-preview.png" alt="AllerSafe Mascot" style="height:100px; display:block; margin:0 auto 10px;">
+  <header style="background: url('{{ url_for('static', filename='bg.jpeg') }}') no-repeat center/cover; color: white; padding: 20px; text-align: center;">
+    <img src="{{ url_for('static', filename='Mr__potato-removebg-preview.png') }}" 
+         alt="AllerSafe Mascot" 
+         style="height:100px; display:block; margin:0 auto 10px;">
     <h1>HOW TO USE OUR WEBSITE?</h1>
     <p>AllerSafe recipe website</p>
     <p>Your companion for safe and healthy cooking👨🏻‍🍳</p>
-  </header>
+   </header>
 
   <main>
     <section>
@@ -142,3 +144,4 @@
 
 </body>
 </html>
+
