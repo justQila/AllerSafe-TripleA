@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}User Warnings{% endblock %}
+{% block page_title %}User Warnings{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">User Warning Management</h5>
+        <div class="d-flex gap-2">
+            <span class="badge bg-danger">{{ warnings|selectattr('resolved', 'equalto', false)|list|length }} Active</span>
+            <span class="badge bg-success">{{ warnings|selectattr('resolved', 'equalto', true)|list|length }} Resolved</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Filter Tabs -->
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link {% if request.args.get('filter', 'active') == 'active' %}active{% endif %}" 
+                   href="{{ url_for('user_warnings', filter='active') }}">
+                    Active Warnings ({{ warnings|selectattr('resolved', 'equalto', false)|list|length }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.args.get('filter') == 'resolved' %}active{% endif %}" 
+                   href="{{ url_for('user_warnings', filter='resolved') }}">
+                    Resolved Warnings ({{ warnings|selectattr('resolved', 'equalto', true)|list|length }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.args.get('filter') == 'all' %}active{% endif %}" 
+                   href="{{ url_for('user_warnings', filter='all') }}">
+                    All Warnings ({{ warnings|length }})
+                </a>
+            </li>
+        </ul>
+
+        {% if warnings %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Warning Type</th>
+                        <th>Severity</th>
+                        <th>Reason</th>
+                        <th>Details</th>
+                        <th>Issued By</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for warning in warnings %}
+                    {% set is_resolved = warning.resolved if warning.resolved is defined else warning.get('resolved', false) %}
+                    {% if (request.args.get('filter', 'active') == 'active' and not is_resolved) or 
+                          (request.args.get('filter') == 'resolved' and is_resolved) or 
+                          (request.args.get('filter') == 'all') %}
+                    <tr class="{% if is_resolved %}table-success{% elif warning.severity == 'critical' %}table-danger{% elif warning.severity == 'warning' %}table-warning{% endif %}">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-user-circle me-2 text-muted"></i>
+                                <div>
+                                    <strong>{{ warning.username or warning.user.username if warning.user else 'Unknown User' }}</strong>
+                                    <br>
+                                    <small class="text-muted">ID: {{ warning.user_id }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge {% if warning.guideline_id %}bg-info{% else %}bg-secondary{% endif %}">
+                                {% if warning.guideline_id %}Guideline Violation{% else %}Custom Warning{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if warning.severity == 'critical' %}bg-danger
+                                {% elif warning.severity == 'warning' %}bg-warning text-dark
+                                {% else %}bg-info{% endif %}">
+                                {{ warning.severity|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if warning.custom_reason %}
+                                {{ warning.custom_reason }}
+                            {% elif warning.guideline_id %}
+                                Guideline #{{ warning.guideline_id }}
+                            {% else %}
+                                {{ warning.reason or 'No reason provided' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if warning.details %}
+                                <button class="btn btn-sm btn-outline-info" 
+                                        data-bs-toggle="tooltip" 
+                                        title="{{ warning.details }}">
+                                    <i class="fas fa-info-circle"></i> Details
+                                </button>
+                            {% else %}
+                                <span class="text-muted">No details</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>
+                                <i class="fas fa-shield-alt me-1"></i>
+                                {{ warning.admin.username if warning.admin else 'System' }}
+                            </small>
+                        </td>
+                        <td>
+                            <small>{{ warning.created_at.strftime('%Y-%m-%d %H:%M') if warning.created_at is string else warning.created_at }}</small>
+                        </td>
+                        <td>
+                            <span class="badge {% if is_resolved %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if is_resolved %}Resolved{% else %}Active{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if not is_resolved %}
+                                <form method="POST" action="{{ url_for('resolve_warning', warning_id=warning.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-success" 
+                                            onclick="return confirm('Mark this warning as resolved?')">
+                                        <i class="fas fa-check"></i> Resolve
+                                    </button>
+                                </form>
+                                {% endif %}
+                                
+                                <!-- Escalate Action -->
+                                <button class="btn btn-warning" 
+                                        onclick="escalateWarning({{ warning.id }}, {{ warning.user_id }})"
+                                        data-bs-toggle="tooltip" 
+                                        title="Take additional action">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </button>
+                                
+                                <!-- View User Profile -->
+                                <a href="{{ url_for('user_management') }}?search={{ warning.user_id }}" 
+                                   class="btn btn-info"
+                                   data-bs-toggle="tooltip" 
+                                   title="View User Profile">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
+            <h5>No warnings found</h5>
+            <p class="text-muted">
+                {% if request.args.get('filter') == 'resolved' %}
+                    No resolved warnings found.
+                {% else %}
+                    No active warnings found. Great job maintaining community standards!
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Escalate Warning Modal -->
+<div class="modal fade" id="escalateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Escalate Warning Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="escalateForm">
+                    <input type="hidden" id="escalateWarningId">
+                    <input type="hidden" id="escalateUserId">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Action</label>
+                        <select class="form-select" id="escalateAction" required>
+                            <option value="">Choose action...</option>
+                            <option value="suspend">Suspend User Account (7 days)</option>
+                            <option value="restrict">Restrict Recipe Submission</option>
+                            <option value="notify">Send Formal Notification</option>
+                            <option value="critical">Mark as Critical Violation</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Additional Notes</label>
+                        <textarea class="form-control" id="escalateNotes" rows="3" 
+                                  placeholder="Reason for escalation..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="submitEscalation()">Escalate</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function escalateWarning(warningId, userId) {
+    document.getElementById('escalateWarningId').value = warningId;
+    document.getElementById('escalateUserId').value = userId;
+    new bootstrap.Modal(document.getElementById('escalateModal')).show();
+}
+
+function submitEscalation() {
+    const warningId = document.getElementById('escalateWarningId').value;
+    const userId = document.getElementById('escalateUserId').value;
+    const action = document.getElementById('escalateAction').value;
+    const notes = document.getElementById('escalateNotes').value;
+    
+    if (!action) {
+        alert('Please select an action');
+        return;
+    }
+    
+    fetch(`/escalate-warning/${warningId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            user_id: userId,
+            action: action,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('escalateModal')).hide();
+            alert('Warning escalated successfully');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error escalating warning');
+    });
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #faf3e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            position: relative; /* needed for absolute child positioning */
+            background: #fff5eb;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
+            text-align: center;
+            width: 300px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            color: #A0522d;
+        }
+
+        .input-group {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            border: 1px solid #d9a066;
+            border-radius: 25px;
+            padding: 10px;
+        }
+
+        .input-group i {
+            margin-right: 10px;
+            color: #A0522d;
+        }
+        
+        .input-group input {
+            border: none;
+            outline: none;
+            flex: 1;
+            background: none;
+        }
+
+        button {
+            margin-top: 20px;
+            background: #d2691e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #A0522d;
+        }
+
+        /* Exit button in the corner */
+        .exit-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 20px;
+            text-decoration: none;
+            color: #A0522d;
+            font-weight: bold;
+        }
+        .exit-btn:hover {
+            color: #d2691e;
+        }
+    </style>
+
+    <!-- font awesome CDN-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Corner Exit Button -->
+        <a href="{{ url_for('main') }}" class="exit-btn" title="Close">✕</a>
+
+        <h2>Register</h2>
+        <form id="registerForm" method="POST" action="/AllerSafe/register">
+            <div class="input-group">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" name="username" placeholder="Username" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" name="email" placeholder="Email" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" name="password" placeholder="Password (8 digits)"
+                        maxlength="8" pattern="\d{8}" required
+                        title="Password must be 8 digits">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" name="confirm_password" placeholder="Confirm Password"
+                        maxlength="8" pattern="\d{8}" required
+                        title="Password must be 8 digits">
+            </div>
+            <button type="submit">Register</button>
+        </form>
+
+        <!-- Flash Messages as popup -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                  <script>alert("{{ message }}");</script>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        document.getElementById("registerForm").addEventListener("submit", function(e) {
+            let pass = document.querySelector("input[name='password']").value;
+            let confirm = document.querySelector("input[name='confirm_password']").value;
+
+            if (pass !== confirm) {
+                e.preventDefault();
+                alert("Passwords do not match!!");
+            }
+        });
+    </script>
+</body>
+</html>
+

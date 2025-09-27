@@ -1,0 +1,19 @@
+# Core Flask Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Database
+sqlite3
+
+# Security & Authentication
+Werkzeug==2.3.7
+
+# Email Services
+sendgrid==6.10.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Template Engine (included with Flask but listed for clarity)
+Jinja2==3.1.2
+

@@ -1,0 +1,57 @@
+
+{% extends "base.html" %}
+
+{% block title %}Recipe Reports{% endblock %}
+{% block page_title %}Recipe Reports{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Recipe Reports</span>
+        <span class="badge bg-primary">{{ reports|length }} reports</span>
+    </div>
+    <div class="card-body p-0">
+        {% if reports %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Recipe</th>
+                        <th>Reporter</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.recipe_title or 'Unknown Recipe' }}</td>
+                        <td>{{ report.reporter_username or 'Unknown User' }}</td>
+                        <td>{{ report.reason }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if report.status == 'resolved' else 'warning' }}">
+                                {{ report.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ report.created_at }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info">View</button>
+                            <button class="btn btn-sm btn-success">Resolve</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center">
+            <i class="fas fa-flag fa-3x text-muted mb-3"></i>
+            <h5>No Recipe Reports</h5>
+            <p class="text-muted">No reports have been submitted yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
