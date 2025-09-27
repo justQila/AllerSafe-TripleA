@@ -4,7 +4,6 @@ Werkzeug==2.3.7
 waitress==2.1.2
 
 # Database
-sqlite3
 SQAlchemy
 
 # Security & Authentication
