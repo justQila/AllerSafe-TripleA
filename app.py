@@ -477,10 +477,14 @@ def logout_user():
 @app.route("/AllerSafe/forgot_password", methods=["GET", "POST"])
 def forgot_password_user():
     if request.method == "POST":
-        email = request.form["email"]
-        conn = get_db_connection()
+        email = request.form["email"].strip().lower()
+        
+        # Connect directly to user.db
+        conn = sqlite3.connect('user.db')
+        conn.row_factory = sqlite3.Row
         user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         conn.close()
+        
         if user:
             return render_template("reset_password_user.html", email=email)
         else:
@@ -489,23 +493,54 @@ def forgot_password_user():
 
 @app.route("/AllerSafe/reset_password", methods=["POST"])
 def reset_password_user():
-    email = request.form["email"]
-    new_password = request.form["new_password"]
-    confirm_password = request.form["confirm_password"]
+    print("=== RESET PASSWORD FUNCTION CALLED ===")
+    
+    try:
+        email = request.form.get("email", "").strip().lower()
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        
+        print(f"Email: '{email}'")
+        print(f"Passwords match: {new_password == confirm_password}")
 
-    if new_password != confirm_password:
-        return "PASSWORDS DO NOT MATCH! <a href='/AllerSafe/forgot_password'>Try again</a>"
+        if not email or not new_password or not confirm_password:
+            flash("All fields are required!", "error")
+            return render_template("reset_password_user.html", email=email)
 
-    # Hash new password
-    password_hash = generate_password_hash(new_password)
+        if new_password != confirm_password:
+            flash("Passwords do not match!", "error")
+            return render_template("reset_password_user.html", email=email)
+        
+        if len(new_password) < 8:
+            flash("Password must be at least 8 characters", "error")
+            return render_template("reset_password_user.html", email=email)
 
-    conn = get_db_connection()
-    conn.execute("UPDATE users SET password = ? WHERE email = ?", (password_hash, email))
-    conn.commit()
-    conn.close()
+        password_hash = generate_password_hash(new_password)
+        
+        # Connect directly to user.db
+        conn = sqlite3.connect('user.db')
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.execute("UPDATE users SET password = ? WHERE email = ?", 
+                            (password_hash, email))
+        rows_affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        print(f"Rows affected: {rows_affected}")
+        
+        if rows_affected == 0:
+            flash("User not found!", "error")
+            return render_template("reset_password_user.html", email=email)
+        
+        flash("Password updated successfully. You can now log in.", "success")
+        return redirect("/AllerSafe/login")
+        
+    except Exception as e:
+        print(f"ERROR: {e}")
+        flash("An error occurred. Please try again.", "error")
+        return render_template("reset_password_user.html", email=email)
 
-    flash("Password updated successfully. You can now log in.", "success")
-    return redirect(url_for("login_user"))
 
 # =========================
 # Contact Me + Complain/Suggest system
@@ -1368,4 +1403,5 @@ def submit_recipe():
 if __name__ == '__main__':
     app.run(debug=True)
     
+
 
