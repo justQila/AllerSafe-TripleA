@@ -1,15 +1,18 @@
 # Core Flask Framework
 Flask==2.3.3
 Werkzeug==2.3.7
+waitress==2.1.2
 
 # Database
 sqlite3
+SQAlchemy
 
 # Security & Authentication
 Werkzeug==2.3.7
 
-# Email Services
-sendgrid==6.10.0
+# Email Service
+Flask-Mail==0.9.1
+waitress==2.1.2
 
 # Environment Variables
 python-dotenv==1.0.0
